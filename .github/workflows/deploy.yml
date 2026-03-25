@@ -1,0 +1,27 @@
+name: Deploy to PythonAnywhere
+
+on:
+  push:
+    branches: [ main ] # Trigger on push to main branch
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: SSH and Deploy
+        uses: appleboy/ssh-action@master
+        with:
+          host: ssh.pythonanywhere.com
+          username: ${{ secrets.PA_USERNAME }}
+          password: ${{ secrets.PA_PASSWORD }}
+          script: |
+            cd ~/TIC_BACKEND
+            git pull origin main
+            source ~/.virtualenvs/myenv/bin/activate
+            pip install -r requirements.txt
+            python manage.py migrate
+            python manage.py collectstatic --noinput
+            touch /var/www/${{ secrets.PA_USERNAME }}_pythonanywhere_com_wsgi.py
