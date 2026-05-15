@@ -147,3 +147,6 @@ AUTH_USER_MODEL = 'users.User'
 
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
+
+# Add this at the bottom (using os.environ to avoid hardcoding if provided via environment)
+CHEAPDATAHUB_API_KEY = os.environ.get("CHEAPDATAHUB_API_KEY", "YOUR_NEW_REGENERATED_KEY_HERE")
