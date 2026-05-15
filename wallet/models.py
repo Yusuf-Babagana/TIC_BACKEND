@@ -5,9 +5,14 @@ class Wallet(models.Model):
     user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='wallet')
     balance = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
     updated_at = models.DateTimeField(auto_now=True)
+    
+    # Monnify Reserved Account Details
+    bank_name = models.CharField(max_length=100, null=True, blank=True)
+    account_number = models.CharField(max_length=20, null=True, blank=True)
+    account_reference = models.CharField(max_length=100, null=True, blank=True)
 
     def __str__(self):
-        return f"{self.user.username}'s Wallet - ₦{self.balance}"
+        return f"{self.user.username} - {self.account_number or 'No Acct'} (₦{self.balance})"
 
 class Transaction(models.Model):
     TRANSACTION_TYPES = [

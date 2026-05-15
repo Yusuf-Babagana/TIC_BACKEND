@@ -64,7 +64,7 @@ class VTUPurchaseView(APIView):
 
     def post(self, request):
         # Import inside the method to avoid the circular import error
-        from wallet.models import Wallet 
+        from wallet.models import Wallet, Transaction
         
         user = request.user
         data = request.data
@@ -99,7 +99,21 @@ class VTUPurchaseView(APIView):
             if res_data.get('status') == "true":
                 user.wallet.balance -= amount
                 user.wallet.save()
-                # Log transaction logic here...
+                
+                trans_mapping = {
+                    'airtime': 'AIRTIME',
+                    'data': 'DATA',
+                    'electricity': 'UTILITY',
+                    'cable': 'UTILITY'
+                }
+                # Log transaction
+                Transaction.objects.create(
+                    user=request.user,
+                    trans_type=trans_mapping.get(service_type, 'DATA'),
+                    amount=amount,
+                    reference=res_data.get('reference', 'N/A'),
+                    status='SUCCESSFUL'
+                )
             
             return Response(res_data)
         except Exception as e:
