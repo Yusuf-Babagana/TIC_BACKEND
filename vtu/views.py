@@ -7,7 +7,7 @@ from .serializers import DataPlanSerializer
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from .services import CheapDataHubService
-from wallet.models import Wallet # Assuming you have a wallet app
+
 
 class AirtimePurchaseView(APIView):
     permission_classes = [IsAuthenticated]
@@ -36,11 +36,13 @@ class AirtimePurchaseView(APIView):
         return Response(vtu_response)
 
 class DataPlanListView(APIView):
-    # This must allow GET requests
+    # This endpoint should probably be public so users can see plans before login
+    permission_classes = [] 
+
     def get(self, request):
-        network = request.query_params.get('network') # e.g. ?network=MTN
+        network = request.query_params.get('network')
         if network:
-            plans = DataPlan.objects.filter(network=network, is_active=True)
+            plans = DataPlan.objects.filter(network=network.upper(), is_active=True)
         else:
             plans = DataPlan.objects.filter(is_active=True)
             
@@ -51,6 +53,9 @@ class VTUPurchaseView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
+        # Import inside the method to avoid the circular import error
+        from wallet.models import Wallet 
+        
         user = request.user
         data = request.data
         
