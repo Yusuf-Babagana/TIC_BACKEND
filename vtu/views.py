@@ -5,7 +5,7 @@ from rest_framework.views import APIView
 from .models import DataPlan
 from .serializers import DataPlanSerializer
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, AllowAny
 from .services import CheapDataHubService
 
 
@@ -36,8 +36,8 @@ class AirtimePurchaseView(APIView):
         return Response(vtu_response)
 
 class DataPlanListView(APIView):
-    # This endpoint should probably be public so users can see plans before login
-    permission_classes = [] 
+    # This allows the phone to fetch plans without a token
+    permission_classes = [AllowAny] 
 
     def get(self, request):
         network = request.query_params.get('network')
