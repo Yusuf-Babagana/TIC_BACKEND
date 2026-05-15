@@ -1,9 +1,8 @@
 import requests
 from django.conf import settings
-from rest_framework import generics
+from rest_framework import generics, serializers
 from rest_framework.views import APIView
 from .models import DataPlan
-from .serializers import DataPlanSerializer
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from .services import CheapDataHubService
@@ -35,19 +34,30 @@ class AirtimePurchaseView(APIView):
 
         return Response(vtu_response)
 
+# Define the Serializer right here in the file temporarily 
+# to ensure there are no import errors.
+class DataPlanSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = DataPlan
+        fields = '__all__'
+
 class DataPlanListView(APIView):
     # This allows the phone to fetch plans without a token
     permission_classes = [AllowAny] 
 
     def get(self, request):
-        network = request.query_params.get('network')
-        if network:
-            plans = DataPlan.objects.filter(network=network.upper(), is_active=True)
-        else:
-            plans = DataPlan.objects.filter(is_active=True)
+        try:
+            network = request.query_params.get('network')
+            if network:
+                plans = DataPlan.objects.filter(network=network.upper(), is_active=True)
+            else:
+                plans = DataPlan.objects.filter(is_active=True)
             
-        serializer = DataPlanSerializer(plans, many=True)
-        return Response(serializer.data)
+            serializer = DataPlanSerializer(plans, many=True)
+            return Response(serializer.data)
+        except Exception as e:
+            # This helps us see the error in the mobile log
+            return Response({"error": str(e)}, status=500)
 
 class VTUPurchaseView(APIView):
     permission_classes = [IsAuthenticated]
