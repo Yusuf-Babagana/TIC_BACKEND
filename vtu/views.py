@@ -35,14 +35,17 @@ class AirtimePurchaseView(APIView):
 
         return Response(vtu_response)
 
-class DataPlanListView(generics.ListAPIView):
-    serializer_class = DataPlanSerializer
-
-    def get_queryset(self):
-        network = self.request.query_params.get('network')
+class DataPlanListView(APIView):
+    # This must allow GET requests
+    def get(self, request):
+        network = request.query_params.get('network') # e.g. ?network=MTN
         if network:
-            return DataPlan.objects.filter(network=network, is_active=True)
-        return DataPlan.objects.filter(is_active=True)
+            plans = DataPlan.objects.filter(network=network, is_active=True)
+        else:
+            plans = DataPlan.objects.filter(is_active=True)
+            
+        serializer = DataPlanSerializer(plans, many=True)
+        return Response(serializer.data)
 
 class VTUPurchaseView(APIView):
     permission_classes = [IsAuthenticated]
