@@ -42,5 +42,29 @@ class TransactionHistoryView(generics.ListAPIView):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        # Only show transactions belonging to the logged-in user
         return Transaction.objects.filter(user=self.request.user).order_by('-created_at')
+
+class GenerateAccountView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        wallet = request.user.wallet
+        if wallet.account_number:
+            return Response({"message": "Account already exists"}, status=400)
+            
+        # Re-run the onboarding logic
+        from .monnify import MonnifyService
+        try:
+            response = MonnifyService.create_reserved_account(request.user)
+            
+            if response.get('requestSuccessful'):
+                accounts = response['responseBody']['accounts']
+                if accounts:
+                    wallet.bank_name = accounts[0]['bankName']
+                    wallet.account_number = accounts[0]['accountNumber']
+                    wallet.account_reference = response['responseBody']['accountReference']
+                    wallet.save()
+                    return Response({"message": "Account generated successfully"})
+            return Response({"message": "Failed to generate account. Please try again."}, status=400)
+        except Exception as e:
+            return Response({"message": str(e)}, status=500)
