@@ -1,3 +1,5 @@
+import requests
+from django.conf import settings
 from rest_framework import generics
 from rest_framework.views import APIView
 from .models import DataPlan
@@ -41,3 +43,46 @@ class DataPlanListView(generics.ListAPIView):
         if network:
             return DataPlan.objects.filter(network=network, is_active=True)
         return DataPlan.objects.filter(is_active=True)
+
+class VTUPurchaseView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        user = request.user
+        data = request.data
+        
+        # 1. Extract parameters
+        # service_type can be 'airtime', 'data', 'electricity', or 'cable'
+        service_type = data.get('service_type')
+        amount = float(data.get('amount', 0))
+        
+        # 2. Local Wallet Check
+        if user.wallet.balance < amount:
+            return Response({"status": "false", "message": "Insufficient TIC Wallet balance"}, status=400)
+
+        # 3. Construct CheapDataHub Request
+        url_map = {
+            "airtime": "airtime/purchase/",
+            "data": "data/purchase/",
+            "electricity": "electricity/purchase/",
+            "cable": "cable/purchase/"
+        }
+        
+        url = f"https://www.cheapdatahub.ng/api/v1/resellers/{url_map.get(service_type)}"
+        headers = {"Authorization": f"Bearer {settings.CHEAPDATAHUB_API_KEY}"}
+        
+        # 4. Call Provider
+        try:
+            # We pass the payload directly as received from the mobile app
+            response = requests.post(url, json=data, headers=headers)
+            res_data = response.json()
+
+            # 5. Handle Success
+            if res_data.get('status') == "true":
+                user.wallet.balance -= amount
+                user.wallet.save()
+                # Log transaction logic here...
+            
+            return Response(res_data)
+        except Exception as e:
+            return Response({"status": "false", "message": "Connection to provider failed"}, status=500)
