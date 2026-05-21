@@ -133,8 +133,18 @@ class SubmitBVNView(APIView):
             request.user.username,
             request.user.email,
         )
-        bvn = request.data.get("bvn", "").strip()
-        nin = request.data.get("nin", "").strip()
+
+        bvn = request.data.get("bvn")
+        nin = request.data.get("nin")
+
+        if settings.DEBUG:
+            if not bvn or bvn in ["", "string", "00000000000"]:
+                bvn = "22241354089"
+            if not nin or nin in ["", "string"]:
+                nin = "72533591954"
+
+        bvn = (bvn or "").strip()
+        nin = (nin or "").strip()
 
         if not re.fullmatch(r"\d{11}", bvn):
             return Response(
