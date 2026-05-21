@@ -21,7 +21,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-d0yp70vgtbv69vv$nczea(ujnbjkc1h_*rt$#cw!1_-iz%6y)h'
+SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'django-insecure-d0yp70vgtbv69vv$nczea(ujnbjkc1h_*rt$#cw!1_-iz%6y)h')
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
@@ -37,6 +37,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'corsheaders',
     'users',
     'wallet',
     'vtu',
@@ -48,6 +49,7 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
+    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
@@ -150,3 +152,14 @@ MEDIA_ROOT = BASE_DIR / 'media'
 
 # Add this at the bottom (using os.environ to avoid hardcoding if provided via environment)
 CHEAPDATAHUB_API_KEY = os.environ.get("CHEAPDATAHUB_API_KEY", "YOUR_NEW_REGENERATED_KEY_HERE")
+
+# Monnify Payment Gateway Settings
+MONNIFY_API_KEY = os.environ.get("MONNIFY_API_KEY", "")
+MONNIFY_SECRET_KEY = os.environ.get("MONNIFY_SECRET_KEY", "")
+MONNIFY_CONTRACT_CODE = os.environ.get("MONNIFY_CONTRACT_CODE", "")
+
+# CORS Configuration
+CORS_ALLOWED_ORIGINS = os.environ.get(
+    "CORS_ALLOWED_ORIGINS",
+    "http://localhost:3000,http://localhost:8080,http://127.0.0.1:8000"
+).split(",")

@@ -1,11 +1,12 @@
 import requests
 from django.conf import settings
-from rest_framework import generics, serializers
 from rest_framework.views import APIView
 from .models import DataPlan
+from .serializers import DataPlanSerializer
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from .services import CheapDataHubService
+from wallet.models import Transaction
 
 
 class AirtimePurchaseView(APIView):
@@ -28,18 +29,17 @@ class AirtimePurchaseView(APIView):
             # 3. Deduct from TIC Wallet only if successful
             user_wallet.balance -= amount
             user_wallet.save()
-            
+
             # 4. Log the transaction locally for the user
-            # Transaction.objects.create(user=request.user, amount=amount, type='Airtime')
+            Transaction.objects.create(
+                user=request.user,
+                trans_type='AIRTIME',
+                amount=amount,
+                reference=vtu_response.get('reference', 'N/A'),
+                status='SUCCESSFUL'
+            )
 
         return Response(vtu_response)
-
-# Define the Serializer right here in the file temporarily 
-# to ensure there are no import errors.
-class DataPlanSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = DataPlan
-        fields = '__all__'
 
 class DataPlanListView(APIView):
     # This allows the phone to fetch plans without a token
@@ -63,9 +63,6 @@ class VTUPurchaseView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
-        # Import inside the method to avoid the circular import error
-        from wallet.models import Wallet, Transaction
-        
         user = request.user
         data = request.data
         
