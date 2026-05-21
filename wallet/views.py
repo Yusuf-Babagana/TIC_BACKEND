@@ -1,9 +1,13 @@
 import hashlib
 import hmac
+import logging
 import re
+import traceback
 
 from django.conf import settings
 from rest_framework import generics, status
+
+logger = logging.getLogger(__name__)
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -11,6 +15,18 @@ from rest_framework.views import APIView
 from .models import Wallet, Transaction
 from .monnify import MonnifyService, MonnifyError
 from .serializers import TransactionSerializer
+
+
+class WalletBalanceView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        wallet = request.user.wallet
+        return Response({
+            "balance": str(wallet.balance),
+            "bank_name": wallet.bank_name,
+            "account_number": wallet.account_number,
+        }, status=200)
 
 
 class MonnifyWebhookView(APIView):
@@ -90,9 +106,15 @@ class GenerateAccountView(APIView):
         except MonnifyError as e:
             return Response({"message": str(e)}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
+            logger.error("GenerateAccount Crash: %s", str(e))
+            logger.error(traceback.format_exc())
             return Response(
-                {"message": "Service unavailable. Please try again."},
-                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+                {
+                    "status": "error",
+                    "message": "Failed to connect to identity provider",
+                    "details": str(e),
+                },
+                status=status.HTTP_502_BAD_GATEWAY,
             )
 
 
@@ -139,7 +161,13 @@ class SubmitBVNView(APIView):
                 {"error": str(e)}, status=status.HTTP_400_BAD_REQUEST
             )
         except Exception as e:
+            logger.error("BVN Submission Crash: %s", str(e))
+            logger.error(traceback.format_exc())
             return Response(
-                {"error": "Service unavailable. Please try again."},
-                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+                {
+                    "status": "error",
+                    "message": "Failed to connect to identity provider",
+                    "details": str(e),
+                },
+                status=status.HTTP_502_BAD_GATEWAY,
             )

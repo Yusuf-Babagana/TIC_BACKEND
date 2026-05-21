@@ -1,6 +1,18 @@
+import logging
 import uuid
 
+from django.conf import settings
 from django.db import transaction
+
+logger = logging.getLogger(__name__)
+
+
+def _mask_key(key):
+    if not key:
+        return "(empty)"
+    if len(key) <= 10:
+        return key[:4] + "****"
+    return key[:6] + "****" + key[-4:]
 from rest_framework import status
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
@@ -80,6 +92,13 @@ class VTUPurchaseView(APIView):
                     )
 
         except Exception:
+            logger.error(
+                "VTU purchase failed. service_type=%s cost=%s user=%s masked_key=%s",
+                service_type,
+                cost,
+                user.id,
+                _mask_key(settings.CHEAPDATAHUB_API_KEY),
+            )
             Transaction.objects.create(
                 user=user,
                 trans_type=self._map_transaction_type(service_type),

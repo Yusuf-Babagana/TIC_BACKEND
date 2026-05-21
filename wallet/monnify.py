@@ -1,4 +1,5 @@
 import logging
+
 import requests
 import base64
 from django.conf import settings
@@ -23,8 +24,14 @@ class MonnifyService:
             headers={"Authorization": f"Basic {encoded}"},
             timeout=cls.TIMEOUT,
         )
+        if resp.status_code != 200:
+            logger.error("Monnify auth failed: status=%s body=%s", resp.status_code, resp.text)
+            raise MonnifyError(f"Monnify authentication failed (HTTP {resp.status_code})")
         data = resp.json()
-        token = data["responseBody"]["accessToken"]
+        token = data.get("responseBody", {}).get("accessToken")
+        if not token:
+            logger.error("Monnify auth response missing accessToken: %s", data)
+            raise MonnifyError("Monnify authentication returned no access token")
         return {
             "Authorization": f"Bearer {token}",
             "Content-Type": "application/json",
@@ -45,21 +52,35 @@ class MonnifyService:
         }
         if bvn:
             payload["bvn"] = bvn
+
         resp = requests.post(url, json=payload, headers=headers, timeout=cls.TIMEOUT)
-        resp.raise_for_status()
         body = resp.json()
 
-        if not body.get("requestSuccessful"):
-            raise MonnifyError(
-                f"Monnify request failed: {body.get('responseMessage', 'Unknown error')}"
+        if resp.status_code != 200:
+            logger.error(
+                "Monnify account creation failed: status=%s body=%s",
+                resp.status_code,
+                body,
             )
+            msg = body.get("responseMessage", body.get("message", "Monnify request failed"))
+            raise MonnifyError(msg)
 
-        accounts = body["responseBody"].get("accounts", [])
+        if not body.get("requestSuccessful"):
+            logger.error("Monnify rejected request: %s", body)
+            msg = body.get("responseMessage", body.get("message", "Monnify rejected the request"))
+            raise MonnifyError(msg)
+
+        response_body = body.get("responseBody", {})
+        accounts = response_body.get("accounts", [])
+
         if not accounts:
-            raise MonnifyError("Monnify returned no bank accounts")
+            logger.error("Monnify returned no accounts in response: %s", body)
+            msg = body.get("responseMessage", "Monnify returned no bank accounts")
+            raise MonnifyError(msg)
 
+        first = accounts[0]
         return {
-            "bank_name": accounts[0]["bankName"],
-            "account_number": accounts[0]["accountNumber"],
-            "account_reference": body["responseBody"]["accountReference"],
+            "bank_name": first.get("bankName", "Unknown"),
+            "account_number": first.get("accountNumber", ""),
+            "account_reference": response_body.get("accountReference", ""),
         }
