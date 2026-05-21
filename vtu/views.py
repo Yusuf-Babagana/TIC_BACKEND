@@ -1,117 +1,140 @@
-import requests
-from django.conf import settings
-from rest_framework.views import APIView
-from .models import DataPlan
-from .serializers import DataPlanSerializer
+import uuid
+
+from django.db import transaction
+from rest_framework import status
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated, AllowAny
-from .services import CheapDataHubService
+from rest_framework.views import APIView
+
 from wallet.models import Transaction
 
+from .models import DataPlan
+from .serializers import DataPlanSerializer, VTUPurchaseSerializer
+from .services import CheapDataHubService
 
-class AirtimePurchaseView(APIView):
-    permission_classes = [IsAuthenticated]
-
-    def post(self, request):
-        amount = request.data.get('amount')
-        phone = request.data.get('phone_number')
-        provider = request.data.get('provider_id')
-
-        # 1. Check local TIC Wallet balance first
-        user_wallet = request.user.wallet
-        if user_wallet.balance < amount:
-            return Response({"status": "false", "message": "Insufficient TIC Wallet balance"}, status=402)
-
-        # 2. Call CheapDataHub
-        vtu_response = CheapDataHubService.purchase_airtime(provider, phone, amount)
-
-        if vtu_response.get('status') == "true":
-            # 3. Deduct from TIC Wallet only if successful
-            user_wallet.balance -= amount
-            user_wallet.save()
-
-            # 4. Log the transaction locally for the user
-            Transaction.objects.create(
-                user=request.user,
-                trans_type='AIRTIME',
-                amount=amount,
-                reference=vtu_response.get('reference', 'N/A'),
-                status='SUCCESSFUL'
-            )
-
-        return Response(vtu_response)
 
 class DataPlanListView(APIView):
-    # This allows the phone to fetch plans without a token
-    permission_classes = [AllowAny] 
+    permission_classes = [AllowAny]
 
     def get(self, request):
-        try:
-            network = request.query_params.get('network')
-            if network:
-                plans = DataPlan.objects.filter(network=network.upper(), is_active=True)
-            else:
-                plans = DataPlan.objects.filter(is_active=True)
-            
-            serializer = DataPlanSerializer(plans, many=True)
-            return Response(serializer.data)
-        except Exception as e:
-            # This helps us see the error in the mobile log
-            return Response({"error": str(e)}, status=500)
+        network = request.query_params.get("network")
+        plans = DataPlan.objects.filter(is_active=True)
+        if network:
+            plans = plans.filter(network=network.upper())
+        serializer = DataPlanSerializer(plans, many=True)
+        return Response(serializer.data)
+
 
 class VTUPurchaseView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
+        serializer = VTUPurchaseSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        data = serializer.validated_data
+        service_type = data["service_type"]
+        cost = data["amount"]
         user = request.user
-        data = request.data
-        
-        # 1. Extract parameters
-        # service_type can be 'airtime', 'data', 'electricity', or 'cable'
-        service_type = data.get('service_type')
-        amount = float(data.get('amount', 0))
-        
-        # 2. Local Wallet Check
-        if user.wallet.balance < amount:
-            return Response({"status": "false", "message": "Insufficient TIC Wallet balance"}, status=400)
 
-        # 3. Construct CheapDataHub Request
-        url_map = {
-            "airtime": "airtime/purchase/",
-            "data": "data/purchase/",
-            "electricity": "electricity/purchase/",
-            "cable": "cable/purchase/"
-        }
-        
-        url = f"https://www.cheapdatahub.ng/api/v1/resellers/{url_map.get(service_type)}"
-        headers = {"Authorization": f"Bearer {settings.CHEAPDATAHUB_API_KEY}"}
-        
-        # 4. Call Provider
+        if user.wallet.balance < cost:
+            return Response(
+                {"status": "false", "message": "Insufficient TIC Wallet balance"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
         try:
-            # We pass the payload directly as received from the mobile app
-            response = requests.post(url, json=data, headers=headers)
-            res_data = response.json()
+            with transaction.atomic():
+                result = self._call_provider(service_type, data)
+                raw = result.get("status") == "true"
 
-            # 5. Handle Success
-            if res_data.get('status') == "true":
-                user.wallet.balance -= amount
-                user.wallet.save()
-                
-                trans_mapping = {
-                    'airtime': 'AIRTIME',
-                    'data': 'DATA',
-                    'electricity': 'UTILITY',
-                    'cable': 'UTILITY'
-                }
-                # Log transaction
-                Transaction.objects.create(
-                    user=request.user,
-                    trans_type=trans_mapping.get(service_type, 'DATA'),
-                    amount=amount,
-                    reference=res_data.get('reference', 'N/A'),
-                    status='SUCCESSFUL'
-                )
-            
-            return Response(res_data)
-        except Exception as e:
-            return Response({"status": "false", "message": "Connection to provider failed"}, status=500)
+                if raw:
+                    user.wallet.balance -= cost
+                    user.wallet.save(update_fields=["balance"])
+
+                    Transaction.objects.create(
+                        user=user,
+                        trans_type=self._map_transaction_type(service_type),
+                        amount=cost,
+                        reference=result.get("reference", "N/A"),
+                        status="SUCCESSFUL",
+                    )
+                    return Response(result, status=status.HTTP_200_OK)
+                else:
+                    Transaction.objects.create(
+                        user=user,
+                        trans_type=self._map_transaction_type(service_type),
+                        amount=cost,
+                        reference=f"FAILED-{uuid.uuid4().hex[:12].upper()}",
+                        status="FAILED",
+                    )
+                    return Response(
+                        {
+                            "status": "false",
+                            "message": result.get(
+                                "message", "Provider request failed"
+                            ),
+                        },
+                        status=status.HTTP_502_BAD_GATEWAY,
+                    )
+
+        except Exception:
+            Transaction.objects.create(
+                user=user,
+                trans_type=self._map_transaction_type(service_type),
+                amount=cost,
+                reference=f"FAILED-{uuid.uuid4().hex[:12].upper()}",
+                status="FAILED",
+            )
+            return Response(
+                {
+                    "status": "false",
+                    "message": "Service temporarily unavailable. Please try again.",
+                },
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+
+    def _call_provider(self, service_type, data):
+        mapping = {
+            "AIRTIME": lambda d: CheapDataHubService.purchase_airtime(
+                provider_id=d.get("provider_id"),
+                phone_number=d.get("phone_number"),
+                amount=d.get("amount"),
+            ),
+            "DATA": lambda d: CheapDataHubService.purchase_data(
+                bundle_id=d.get("bundle_id"),
+                phone_number=d.get("phone_number"),
+            ),
+            "ELECTRICITY": lambda d: CheapDataHubService.purchase_electricity(
+                disco_id=d.get("disco_id"),
+                meter_number=d.get("meter_number"),
+                amount=d.get("amount"),
+                meter_type=d.get("meter_type"),
+                phone=d.get("phone_number"),
+            ),
+            "CABLE": lambda d: CheapDataHubService.purchase_cable(
+                plan_id=d.get("plan_id"),
+                card_number=d.get("card_number"),
+                phone=d.get("phone_number"),
+            ),
+            "EXAMPIN": lambda d: CheapDataHubService.purchase_exam_pin(
+                product_id=d.get("product_id"),
+                quantity=d.get("quantity", 1),
+            ),
+        }
+        handler = mapping.get(service_type)
+        if not handler:
+            raise ValueError(f"Unsupported service_type: {service_type}")
+        return handler(data)
+
+    @staticmethod
+    def _map_transaction_type(service_type):
+        mapping = {
+            "AIRTIME": "AIRTIME",
+            "DATA": "DATA",
+            "ELECTRICITY": "UTILITY",
+            "CABLE": "UTILITY",
+            "EXAMPIN": "EXAMPIN",
+        }
+        return mapping.get(service_type, "DATA")

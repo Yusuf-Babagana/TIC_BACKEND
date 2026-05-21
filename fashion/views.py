@@ -1,7 +1,8 @@
 from rest_framework import viewsets, permissions, generics, status
 from rest_framework.parsers import MultiPartParser, FormParser
+from rest_framework.response import Response
 from .models import Category, Product, UserMeasurement, CustomStyleRequest
-from .serializers import CategorySerializer, ProductSerializer, UserMeasurementSerializer, CustomStyleRequestSerializer
+from .serializers import CategorySerializer, ProductSerializer, UserMeasurementSerializer, CustomStyleRequestSerializer, CustomStyleRequestUpdateSerializer
 class CategoryViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Category.objects.all()
     serializer_class = CategorySerializer
@@ -46,3 +47,8 @@ class MyOrdersListView(generics.ListAPIView):
     def get_queryset(self):
         # Only return orders belonging to the logged-in user
         return CustomStyleRequest.objects.filter(user=self.request.user).order_by('-created_at')
+
+class CustomStyleRequestAdminView(generics.RetrieveUpdateAPIView):
+    queryset = CustomStyleRequest.objects.all()
+    serializer_class = CustomStyleRequestUpdateSerializer
+    permission_classes = [permissions.IsAdminUser]

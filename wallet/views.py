@@ -1,3 +1,6 @@
+import hashlib
+import hmac
+from django.conf import settings
 from rest_framework import generics
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
@@ -6,11 +9,24 @@ from rest_framework.response import Response
 from .models import Wallet, Transaction
 
 class MonnifyWebhookView(APIView):
-    permission_classes = [] # Public because Monnify calls it
+    permission_classes = []
+
+    def _verify_signature(self, request):
+        signature = request.headers.get('monnify-signature')
+        if not signature:
+            return False
+        expected = hmac.new(
+            settings.MONNIFY_SECRET_KEY.encode('utf-8'),
+            request.body,
+            hashlib.sha512
+        ).hexdigest()
+        return hmac.compare_digest(signature, expected)
 
     def post(self, request):
+        if not self._verify_signature(request):
+            return Response({"status": "invalid signature"}, status=403)
+
         data = request.data
-        # 1. Verify hash/signature here for security!
         
         if data.get('paymentStatus') == 'PAID':
             ref = data.get('paymentReference')

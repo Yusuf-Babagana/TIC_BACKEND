@@ -1,30 +1,52 @@
+import logging
+import uuid
+
+import requests
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 from django.contrib.auth import get_user_model
+
 from wallet.models import Wallet
-from wallet.monnify import MonnifyService
+from wallet.monnify import MonnifyService, MonnifyError
+
+logger = logging.getLogger(__name__)
 
 User = get_user_model()
 
+
 @receiver(post_save, sender=User)
 def handle_user_onboarding(sender, instance, created, **kwargs):
-    if created:
-        # 1. Create the Local Wallet first
-        wallet = Wallet.objects.create(user=instance)
-        
-        # 2. Call Monnify to generate the Reserved Account
-        try:
-            response = MonnifyService.create_reserved_account(instance)
-            
-            if response.get('requestSuccessful'):
-                # Extract details from Monnify v2 responseBody
-                accounts = response['responseBody']['accounts']
-                if accounts:
-                    # We take the first bank account provided (usually Wema or Sterling)
-                    wallet.bank_name = accounts[0]['bankName']
-                    wallet.account_number = accounts[0]['accountNumber']
-                    wallet.account_reference = response['responseBody']['accountReference']
-                    wallet.save()
-        except Exception as e:
-            # Log the error so you can retry manually if the API was down
-            print(f"Monnify Error for {instance.username}: {str(e)}")
+    if not created:
+        return
+
+    if not instance.referral_code:
+        instance.referral_code = uuid.uuid4().hex[:10].upper()
+        instance.save(update_fields=["referral_code"])
+
+    wallet = Wallet.objects.create(user=instance)
+
+    try:
+        account = MonnifyService.create_reserved_account(instance)
+        wallet.bank_name = account["bank_name"]
+        wallet.account_number = account["account_number"]
+        wallet.account_reference = account["account_reference"]
+        wallet.save(update_fields=["bank_name", "account_number", "account_reference"])
+        logger.info(
+            "Monnify account created for user %s: %s - %s",
+            instance.username,
+            account["bank_name"],
+            account["account_number"],
+        )
+    except MonnifyError:
+        logger.exception(
+            "Monnify rejected account creation for user %s", instance.username
+        )
+    except requests.RequestException:
+        logger.exception(
+            "Network error contacting Monnify for user %s", instance.username
+        )
+    except Exception:
+        logger.exception(
+            "Unexpected error during Monnify onboarding for user %s",
+            instance.username,
+        )

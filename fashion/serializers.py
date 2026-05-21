@@ -27,3 +27,8 @@ class CustomStyleRequestSerializer(serializers.ModelSerializer):
         # Added 'user' to fields and read_only_fields for professional tracking
         fields = ['id', 'user', 'description', 'reference_image', 'status', 'price_quote', 'created_at']
         read_only_fields = ['user', 'status', 'price_quote'] # Only admin can change these
+
+class CustomStyleRequestUpdateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CustomStyleRequest
+        fields = ['status', 'price_quote']

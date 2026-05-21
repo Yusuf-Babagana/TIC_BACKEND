@@ -20,6 +20,7 @@ class Transaction(models.Model):
         ('AIRTIME', 'Airtime Top-up'),
         ('UTILITY', 'Utility Bill'),
         ('DEPOSIT', 'Wallet Funding'),
+        ('EXAMPIN', 'Exam Pin Purchase'),
     ]
     
     STATUS_CHOICES = [
