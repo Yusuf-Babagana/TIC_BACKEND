@@ -31,7 +31,7 @@ class MonnifyService:
         }
 
     @classmethod
-    def create_reserved_account(cls, user):
+    def create_reserved_account(cls, user, bvn=None):
         headers = cls._get_headers()
         url = "https://api.monnify.com/api/v2/bank-transfer/reserved-accounts"
         payload = {
@@ -43,6 +43,8 @@ class MonnifyService:
             "customerName": f"{user.first_name} {user.last_name}",
             "getAllAvailableBanks": True,
         }
+        if bvn:
+            payload["bvn"] = bvn
         resp = requests.post(url, json=payload, headers=headers, timeout=cls.TIMEOUT)
         resp.raise_for_status()
         body = resp.json()
