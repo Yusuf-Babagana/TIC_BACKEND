@@ -6,7 +6,7 @@ from .models import DataPlan
 class DataPlanSerializer(serializers.ModelSerializer):
     class Meta:
         model = DataPlan
-        fields = "__all__"
+        fields = ["id", "network", "plan_name", "plan_id", "price", "is_active"]
 
 
 class VTUPurchaseSerializer(serializers.Serializer):
