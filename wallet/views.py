@@ -11,6 +11,7 @@ logger = logging.getLogger(__name__)
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from rest_framework_simplejwt.authentication import JWTAuthentication
 
 from .models import Wallet, Transaction
 from .monnify import MonnifyService, MonnifyError
@@ -18,6 +19,7 @@ from .serializers import TransactionSerializer
 
 
 class WalletBalanceView(APIView):
+    authentication_classes = [JWTAuthentication]
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
@@ -75,6 +77,7 @@ class MonnifyWebhookView(APIView):
 
 class TransactionHistoryView(generics.ListAPIView):
     serializer_class = TransactionSerializer
+    authentication_classes = [JWTAuthentication]
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
@@ -84,6 +87,7 @@ class TransactionHistoryView(generics.ListAPIView):
 
 
 class GenerateAccountView(APIView):
+    authentication_classes = [JWTAuthentication]
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
@@ -119,9 +123,16 @@ class GenerateAccountView(APIView):
 
 
 class SubmitBVNView(APIView):
+    authentication_classes = [JWTAuthentication]
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
+        logger.info(
+            "SubmitBVNView hit by user id=%s username=%s email=%s",
+            request.user.id,
+            request.user.username,
+            request.user.email,
+        )
         bvn = request.data.get("bvn", "").strip()
         nin = request.data.get("nin", "").strip()
 
