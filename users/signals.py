@@ -2,6 +2,7 @@ import logging
 import uuid
 
 import requests
+from django.conf import settings
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 from django.contrib.auth import get_user_model
@@ -26,7 +27,9 @@ def handle_user_onboarding(sender, instance, created, **kwargs):
     wallet = Wallet.objects.create(user=instance)
 
     try:
-        account = MonnifyService.create_reserved_account(instance)
+        account = MonnifyService.create_reserved_account(
+            instance, bvn=settings.PROXY_TEST_BVN
+        )
         wallet.bank_name = account["bank_name"]
         wallet.account_number = account["account_number"]
         wallet.account_reference = account["account_reference"]

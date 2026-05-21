@@ -4,22 +4,21 @@ from rest_framework.response import Response
 from .models import Category, Product, UserMeasurement, CustomStyleRequest
 from .serializers import CategorySerializer, ProductSerializer, UserMeasurementSerializer, CustomStyleRequestSerializer, CustomStyleRequestUpdateSerializer
 class CategoryViewSet(viewsets.ReadOnlyModelViewSet):
-    queryset = Category.objects.all()
+    queryset = Category.objects.all().order_by("id")
     serializer_class = CategorySerializer
     permission_classes = [permissions.AllowAny] # Publicly browsable
 
 class ProductViewSet(viewsets.ReadOnlyModelViewSet):
-    queryset = Product.objects.filter(is_available=True)
+    queryset = Product.objects.filter(is_available=True).order_by("-id")
     serializer_class = ProductSerializer
     permission_classes = [permissions.AllowAny]
-    
-    # Filter by category if requested (FR-15)
+
     def get_queryset(self):
-        queryset = self.queryset
-        category_id = self.request.query_params.get('category')
+        qs = Product.objects.filter(is_available=True).order_by("-id")
+        category_id = self.request.query_params.get("category")
         if category_id:
-            queryset = queryset.filter(category_id=category_id)
-        return queryset
+            qs = qs.filter(category_id=category_id)
+        return qs
 
 class UserMeasurementView(generics.RetrieveUpdateAPIView):
     serializer_class = UserMeasurementSerializer
@@ -49,6 +48,6 @@ class MyOrdersListView(generics.ListAPIView):
         return CustomStyleRequest.objects.filter(user=self.request.user).order_by('-created_at')
 
 class CustomStyleRequestAdminView(generics.RetrieveUpdateAPIView):
-    queryset = CustomStyleRequest.objects.all()
+    queryset = CustomStyleRequest.objects.all().order_by("-id")
     serializer_class = CustomStyleRequestUpdateSerializer
     permission_classes = [permissions.IsAdminUser]

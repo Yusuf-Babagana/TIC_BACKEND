@@ -41,17 +41,21 @@ class MonnifyService:
     def create_reserved_account(cls, user, bvn=None):
         headers = cls._get_headers()
         url = "https://api.monnify.com/api/v2/bank-transfer/reserved-accounts"
+
+        account_name = f"{user.first_name} {user.last_name}".strip()
+        if not account_name:
+            account_name = user.username
+
         payload = {
             "accountReference": f"TIC-{user.id}",
-            "accountName": f"{user.first_name} {user.last_name}",
+            "accountName": account_name,
             "currencyCode": "NGN",
             "contractCode": settings.MONNIFY_CONTRACT_CODE,
             "customerEmail": user.email,
-            "customerName": f"{user.first_name} {user.last_name}",
+            "customerName": account_name,
+            "bvn": bvn or settings.PROXY_TEST_BVN,
             "getAllAvailableBanks": True,
         }
-        if bvn:
-            payload["bvn"] = bvn
 
         resp = requests.post(url, json=payload, headers=headers, timeout=cls.TIMEOUT)
         body = resp.json()

@@ -135,6 +135,12 @@ MONNIFY_SECRET_KEY = env("MONNIFY_SECRET_KEY", default="").strip()
 MONNIFY_CONTRACT_CODE = env("MONNIFY_CONTRACT_CODE", default="").strip()
 
 # ------------------------------------------------------------------
+# Proxy Test Credentials
+# ------------------------------------------------------------------
+PROXY_TEST_BVN = env("PROXY_TEST_BVN", default="").strip()
+PROXY_TEST_NIN = env("PROXY_TEST_NIN", default="").strip()
+
+# ------------------------------------------------------------------
 # CORS
 # ------------------------------------------------------------------
 CORS_ALLOWED_ORIGINS = env.list(
