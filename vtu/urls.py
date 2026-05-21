@@ -1,7 +1,8 @@
 from django.urls import path
-from .views import DataPlanListView, VTUPurchaseView
+from .views import DataPlanListView, SyncDataPlansView, VTUPurchaseView
 
 urlpatterns = [
     path('plans/', DataPlanListView.as_view(), name='plan-list'),
+    path('plans/sync/', SyncDataPlansView.as_view(), name='plan-sync'),
     path('purchase/', VTUPurchaseView.as_view(), name='purchase'),
 ]

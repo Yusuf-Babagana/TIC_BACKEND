@@ -31,11 +31,30 @@ class DataPlanListView(APIView):
 
     def get(self, request):
         network = request.query_params.get("network")
-        plans = DataPlan.objects.filter(is_active=True)
+        plans = DataPlan.objects.filter(is_active=True).order_by("price")
         if network:
             plans = plans.filter(network=network.upper())
         serializer = DataPlanSerializer(plans, many=True)
         return Response(serializer.data)
+
+
+class SyncDataPlansView(APIView):
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        if not request.user.is_staff:
+            return Response(
+                {"status": "false", "message": "Admin access required"},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        ok = CheapDataHubService.sync_live_plans()
+        if ok:
+            return Response({"status": "true", "message": "Plans synced successfully"})
+        return Response(
+            {"status": "false", "message": "Plan sync failed"},
+            status=status.HTTP_502_BAD_GATEWAY,
+        )
 
 
 class VTUPurchaseView(APIView):

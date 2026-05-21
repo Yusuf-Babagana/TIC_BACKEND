@@ -13,6 +13,7 @@ class CheapDataHubError(Exception):
 class CheapDataHubService:
     BASE_URL = "https://www.cheapdatahub.ng/api/v1/resellers"
     TIMEOUT = 30
+    PLAN_SYNC_TIMEOUT = 15
 
     @classmethod
     def _headers(cls):
@@ -97,3 +98,40 @@ class CheapDataHubService:
             "/exam-pin/purchase/",
             {"product_id": product_id, "quantity": quantity},
         )
+
+    @classmethod
+    def sync_live_plans(cls):
+        from vtu.models import DataPlan
+
+        url = f"{cls.BASE_URL}/data/plans/"
+        try:
+            resp = requests.get(url, headers=cls._headers(), timeout=cls.PLAN_SYNC_TIMEOUT)
+            if resp.status_code != 200:
+                logger.error("Plan sync failed: HTTP %s %s", resp.status_code, resp.text)
+                return False
+            plans_data = resp.json().get("data", [])
+            if not plans_data:
+                logger.warning("Plan sync returned empty data set")
+                return False
+
+            DataPlan.objects.all().update(is_active=False)
+
+            for plan in plans_data:
+                DataPlan.objects.update_or_create(
+                    plan_id=plan["plan_id"],
+                    defaults={
+                        "network": plan["network"].upper(),
+                        "plan_name": plan["name"],
+                        "price": plan["price"],
+                        "is_active": True,
+                    },
+                )
+            logger.info("Plan sync completed: %d plans loaded", len(plans_data))
+            return True
+        except requests.Timeout:
+            logger.error("Plan sync timed out")
+        except requests.ConnectionError:
+            logger.error("Plan sync connection failed")
+        except Exception:
+            logger.exception("Plan sync unexpected error")
+        return False
