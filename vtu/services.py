@@ -25,68 +25,75 @@ class CheapDataHubService:
         }
 
     @classmethod
-    def get_balance(cls):
-        url = f"{cls.BASE_URL}/wallet/balance/"
-        resp = requests.get(url, headers=cls._headers(), timeout=cls.TIMEOUT)
-        resp.raise_for_status()
-        return resp.json()
+    def _call(cls, method, endpoint, payload=None):
+        url = f"{cls.BASE_URL}{endpoint}"
+        try:
+            if method == "GET":
+                resp = requests.get(url, headers=cls._headers(), timeout=cls.TIMEOUT)
+            else:
+                resp = requests.post(
+                    url, json=payload, headers=cls._headers(), timeout=cls.TIMEOUT
+                )
+            body = resp.json()
+        except requests.Timeout:
+            raise CheapDataHubError("Provider request timed out")
+        except requests.ConnectionError:
+            raise CheapDataHubError("Provider connection failed")
+        except ValueError:
+            raise CheapDataHubError("Provider returned invalid response")
+
+        if resp.status_code != 200:
+            msg = body.get("message") or body.get("error") or f"HTTP {resp.status_code}"
+            raise CheapDataHubError(msg)
+
+        return body
 
     @classmethod
-    def purchase_airtime(cls, provider_id, phone_number, amount):
-        url = f"{cls.BASE_URL}/airtime/purchase/"
-        payload = {
-            "provider_id": provider_id,
-            "phone_number": phone_number,
-            "amount": amount,
-        }
-        resp = requests.post(
-            url, json=payload, headers=cls._headers(), timeout=cls.TIMEOUT
-        )
-        resp.raise_for_status()
-        return resp.json()
+    def fetch_balance(cls):
+        return cls._call("GET", "/wallet/balance/")
 
     @classmethod
-    def purchase_data(cls, bundle_id, phone_number):
-        url = f"{cls.BASE_URL}/data/purchase/"
-        payload = {"bundle_id": bundle_id, "phone_number": phone_number}
-        resp = requests.post(
-            url, json=payload, headers=cls._headers(), timeout=cls.TIMEOUT
+    def buy_airtime(cls, provider_id, phone_number, amount):
+        return cls._call(
+            "POST",
+            "/airtime/purchase/",
+            {"provider_id": provider_id, "phone_number": phone_number, "amount": amount},
         )
-        resp.raise_for_status()
-        return resp.json()
 
     @classmethod
-    def purchase_electricity(cls, disco_id, meter_number, amount, meter_type, phone):
-        url = f"{cls.BASE_URL}/electricity/purchase/"
-        payload = {
-            "disco_id": disco_id,
-            "meter_number": meter_number,
-            "amount": amount,
-            "meter_type": meter_type,
-            "phone": phone,
-        }
-        resp = requests.post(
-            url, json=payload, headers=cls._headers(), timeout=cls.TIMEOUT
+    def buy_data(cls, bundle_id, phone_number):
+        return cls._call(
+            "POST",
+            "/data/purchase/",
+            {"bundle_id": bundle_id, "phone_number": phone_number},
         )
-        resp.raise_for_status()
-        return resp.json()
 
     @classmethod
-    def purchase_cable(cls, plan_id, card_number, phone):
-        url = f"{cls.BASE_URL}/cable/purchase/"
-        payload = {"plan_id": plan_id, "card_number": card_number, "phone": phone}
-        resp = requests.post(
-            url, json=payload, headers=cls._headers(), timeout=cls.TIMEOUT
+    def buy_electricity(cls, disco_id, meter_number, amount, meter_type, phone):
+        return cls._call(
+            "POST",
+            "/electricity/purchase/",
+            {
+                "disco_id": disco_id,
+                "meter_number": meter_number,
+                "amount": amount,
+                "meter_type": meter_type,
+                "phone": phone,
+            },
         )
-        resp.raise_for_status()
-        return resp.json()
 
     @classmethod
-    def purchase_exam_pin(cls, product_id, quantity):
-        url = f"{cls.BASE_URL}/exam-pin/purchase/"
-        payload = {"product_id": product_id, "quantity": quantity}
-        resp = requests.post(
-            url, json=payload, headers=cls._headers(), timeout=cls.TIMEOUT
+    def buy_cable(cls, plan_id, card_number, phone):
+        return cls._call(
+            "POST",
+            "/cable/purchase/",
+            {"plan_id": plan_id, "card_number": card_number, "phone": phone},
         )
-        resp.raise_for_status()
-        return resp.json()
+
+    @classmethod
+    def buy_exam_pin(cls, product_id, quantity):
+        return cls._call(
+            "POST",
+            "/exam-pin/purchase/",
+            {"product_id": product_id, "quantity": quantity},
+        )
