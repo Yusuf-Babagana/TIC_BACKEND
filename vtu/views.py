@@ -13,7 +13,7 @@ from rest_framework_simplejwt.authentication import JWTAuthentication
 
 from wallet.models import Transaction, Wallet
 
-from .constants import get_data_plan, get_cable_plan
+from .constants import get_data_plan, get_cable_plan, DATA_PLANS
 from .providers import TRANSACTION_TYPE_MAP
 from .serializers import UnifiedPurchaseSerializer
 from .services import CheapDataHubService, CheapDataHubError
@@ -29,13 +29,6 @@ def _mask_key(key):
     return key[:6] + "****" + key[-4:]
 
 
-DATA_PLANS = [
-    {"id": 43, "provider": "mtn", "name": "110MB - 1 Day", "price": 99.0},
-    {"id": 46, "provider": "mtn", "name": "1GB SME - 30 Days", "price": 570.0},
-    {"id": 51, "provider": "mtn", "name": "75GB - 30 Days", "price": 17990.0},
-    {"id": 70, "provider": "airtel", "name": "1GB (Social Bundle) - 3 Days", "price": 295.0},
-    {"id": 36, "provider": "glo", "name": "1GB Corporate Gifting - 30 Days", "price": 425.0},
-]
 
 
 @method_decorator(csrf_exempt, name="dispatch")
