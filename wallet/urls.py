@@ -1,6 +1,6 @@
 from django.urls import path
 
-from vtu.views import DataPlanListView
+from vtu.views import DataPlanListView, UnifiedPurchaseView
 
 from .views import (
     GenerateAccountView,
@@ -19,4 +19,5 @@ urlpatterns = [
     path("generate-account/", GenerateAccountView.as_view(), name="generate-account"),
     path("submit-bvn/", SubmitBVNView.as_view(), name="submit-bvn"),
     path("plans/", DataPlanListView.as_view(), name="wallet-plans-list"),
+    path("purchase/", UnifiedPurchaseView.as_view(), name="wallet-unified-purchase"),
 ]
