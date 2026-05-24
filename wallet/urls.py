@@ -1,5 +1,7 @@
 from django.urls import path
 
+from vtu.views import DataPlanListView
+
 from .views import (
     GenerateAccountView,
     MonnifyWebhookView,
@@ -16,4 +18,5 @@ urlpatterns = [
     path("history/", TransactionHistoryView.as_view(), name="transaction-history"),
     path("generate-account/", GenerateAccountView.as_view(), name="generate-account"),
     path("submit-bvn/", SubmitBVNView.as_view(), name="submit-bvn"),
+    path("plans/", DataPlanListView.as_view(), name="wallet-plans-list"),
 ]

@@ -6,6 +6,7 @@ DATA_PLANS = [
     {"id": 73, "provider": "airtel", "name": "3GB - 30 Days", "price": 1200.00},
     {"id": 74, "provider": "airtel", "name": "5GB - 30 Days", "price": 1900.00},
     {"id": 75, "provider": "airtel", "name": "10GB - 30 Days", "price": 3500.00},
+    {"id": 43, "provider": "mtn", "name": "110MB - 1 Day", "price": 99.00},
     {"id": 46, "provider": "mtn", "name": "1GB SME - 30 Days", "price": 570.00},
     {"id": 51, "provider": "mtn", "name": "75GB - 30 Days", "price": 17990.00},
     {"id": 47, "provider": "mtn", "name": "500MB SME - 30 Days", "price": 340.00},
