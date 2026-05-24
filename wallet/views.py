@@ -89,7 +89,20 @@ class MonnifyWebhookView(APIView):
         account_number = event_data.get("destinationAccountNumber") or event_data.get("accountNumber")
         amount_paid = Decimal(str(event_data.get("amountPaid", event_data.get("amount", "0.00"))))
 
-        if not account_ref and not account_number:
+        if account_ref:
+            ref_str = str(account_ref).strip()
+            print(f"📋 [WEBHOOK TRACE] Raw Reference caught: {ref_str}")
+            digit_match = re.findall(r"\d+", ref_str)
+            if digit_match:
+                user_id = digit_match[0]
+                print(f"🎯 [WEBHOOK TRACE] Extracted clean Integer User ID: {user_id}")
+            else:
+                print(f"❌ [WEBHOOK TRACE] No digits found in reference: {ref_str}")
+                return Response({"status": "error", "message": "No numeric user ID in reference"}, status=400)
+        elif account_number:
+            print(f"📋 [WEBHOOK TRACE] No reference, falling back to account_number: {account_number}")
+            user_id = None
+        else:
             print("❌ [WEBHOOK TRACE] Failure: No reference, no account number in payload.")
             return Response({"status": "error", "message": "Missing reference"}, status=400)
 
@@ -97,19 +110,12 @@ class MonnifyWebhookView(APIView):
 
         try:
             with transaction.atomic():
-                # Strategy 1: Direct TIC- prefix match on the reference string
-                if account_ref and "TIC-" in str(account_ref).upper():
-                    user_id = str(account_ref).upper().replace("TIC-", "").strip()
-                    print(f"💰 [WEBHOOK TRACE] Trying TIC-prefix lookup for User ID: {user_id}")
+                if user_id is not None:
                     wallet = Wallet.objects.select_for_update().get(user_id=user_id)
-
-                # Strategy 2: Fallback to virtual account number match
                 elif account_number:
-                    print(f"💰 [WEBHOOK TRACE] Falling back to account_number lookup: {account_number}")
+                    print(f"💰 [WEBHOOK TRACE] Looking up by account_number: {account_number}")
                     wallet = Wallet.objects.select_for_update().get(account_number=account_number)
-
                 else:
-                    print(f"❌ [WEBHOOK TRACE] Wallet mapping failed for Ref: {account_ref}, Acct: {account_number}")
                     return Response({"status": "error", "message": "No matching wallet strategy"}, status=404)
 
                 wallet.balance += amount_paid
@@ -126,7 +132,8 @@ class MonnifyWebhookView(APIView):
             return Response({"status": "success"}, status=200)
 
         except Wallet.DoesNotExist:
-            print(f"❌ [WEBHOOK TRACE] Wallet mapping failed for Ref: {account_ref}, Acct: {account_number}")
+            ref_display = account_ref or account_number
+            print(f"❌ [WEBHOOK TRACE] Wallet mapping failed for Ref: {ref_display}")
             return Response({"status": "error", "message": "Wallet not found"}, status=404)
         except Exception as db_err:
             print(f"❌ [WEBHOOK TRACE] Final processing crash error: {str(db_err)}")
