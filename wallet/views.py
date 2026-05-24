@@ -5,6 +5,9 @@ import re
 import traceback
 
 from django.conf import settings
+from django.db import transaction
+from django.utils.decorators import method_decorator
+from django.views.decorators.csrf import csrf_exempt
 from rest_framework import generics, status
 
 logger = logging.getLogger(__name__)
@@ -31,6 +34,7 @@ class WalletBalanceView(APIView):
         }, status=200)
 
 
+@method_decorator(csrf_exempt, name="dispatch")
 class MonnifyWebhookView(APIView):
     permission_classes = []
 
@@ -45,32 +49,59 @@ class MonnifyWebhookView(APIView):
         ).hexdigest()
         return hmac.compare_digest(signature, expected)
 
+    @staticmethod
+    def _extract_account_reference(data):
+        return (
+            data.get("metaData", {}).get("accountReference")
+            or data.get("eventData", {}).get("metaData", {}).get("accountReference")
+            or data.get("eventData", {}).get("product", {}).get("reference")
+        )
+
     def post(self, request):
         if not self._verify_signature(request):
             return Response({"status": "invalid signature"}, status=403)
 
         data = request.data
+        event_data = data.get("eventData", data)
 
-        if data.get("paymentStatus") == "PAID":
-            ref = data.get("paymentReference")
-            amount = float(data.get("amountPaid"))
-            customer_email = data["customer"]["email"]
+        if event_data.get("paymentStatus") == "PAID":
+            ref = event_data.get("paymentReference")
+            amount = float(event_data.get("amountPaid", 0))
+
+            account_ref = self._extract_account_reference(data)
+            customer_email = event_data.get("customer", {}).get("email")
 
             try:
-                wallet = Wallet.objects.get(user__email=customer_email)
-                wallet.balance += amount
-                wallet.save()
+                with transaction.atomic():
+                    if account_ref:
+                        wallet = Wallet.objects.select_for_update().get(
+                            account_reference=account_ref
+                        )
+                    elif customer_email:
+                        wallet = Wallet.objects.select_for_update().get(
+                            user__email=customer_email
+                        )
+                    else:
+                        return Response(
+                            {"status": "error", "message": "No wallet identifier found"},
+                            status=400,
+                        )
 
-                Transaction.objects.create(
-                    user=wallet.user,
-                    trans_type="DEPOSIT",
-                    amount=amount,
-                    reference=ref,
-                    status="SUCCESSFUL",
-                )
+                    wallet.balance += amount
+                    wallet.save(update_fields=["balance"])
+
+                    Transaction.objects.create(
+                        user=wallet.user,
+                        trans_type="DEPOSIT",
+                        amount=amount,
+                        reference=ref,
+                        status="SUCCESSFUL",
+                    )
+
                 return Response({"status": "success"}, status=200)
+
             except Wallet.DoesNotExist:
-                return Response({"status": "error"}, status=404)
+                return Response({"status": "error", "message": "Wallet not found"}, status=404)
 
         return Response({"status": "ignored"}, status=200)
 
