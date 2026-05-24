@@ -81,33 +81,53 @@ class MonnifyWebhookView(APIView):
         print(f"📋 [WEBHOOK TRACE] Event: {event_type} | Payment Status: {event_data.get('paymentStatus')}")
 
         # 3. Flexible Reference and Amount Extraction
-        account_ref = event_data.get("destinationAccountReference") or event_data.get("paymentReference")
+        account_ref = (
+            event_data.get("destinationAccountReference")
+            or event_data.get("paymentReference")
+            or (event_data.get("product") or {}).get("reference")
+        )
+        account_number = event_data.get("destinationAccountNumber") or event_data.get("accountNumber")
         amount_paid = Decimal(str(event_data.get("amountPaid", event_data.get("amount", "0.00"))))
 
-        if not account_ref:
-            print("❌ [WEBHOOK TRACE] Failure: Could not extract any payment or account reference string.")
+        if not account_ref and not account_number:
+            print("❌ [WEBHOOK TRACE] Failure: No reference, no account number in payload.")
             return Response({"status": "error", "message": "Missing reference"}, status=400)
 
-        try:
-            user_id = str(account_ref).upper().replace("TIC-", "").strip()
-            print(f"💰 [WEBHOOK TRACE] Target User ID determined: {user_id} | Amount: ₦{amount_paid}")
+        from wallet.models import Wallet, Transaction
 
-            from wallet.models import Wallet, Transaction
+        try:
             with transaction.atomic():
-                wallet = Wallet.objects.select_for_update().get(user_id=user_id)
+                # Strategy 1: Direct TIC- prefix match on the reference string
+                if account_ref and "TIC-" in str(account_ref).upper():
+                    user_id = str(account_ref).upper().replace("TIC-", "").strip()
+                    print(f"💰 [WEBHOOK TRACE] Trying TIC-prefix lookup for User ID: {user_id}")
+                    wallet = Wallet.objects.select_for_update().get(user_id=user_id)
+
+                # Strategy 2: Fallback to virtual account number match
+                elif account_number:
+                    print(f"💰 [WEBHOOK TRACE] Falling back to account_number lookup: {account_number}")
+                    wallet = Wallet.objects.select_for_update().get(account_number=account_number)
+
+                else:
+                    print(f"❌ [WEBHOOK TRACE] Wallet mapping failed for Ref: {account_ref}, Acct: {account_number}")
+                    return Response({"status": "error", "message": "No matching wallet strategy"}, status=404)
+
                 wallet.balance += amount_paid
                 wallet.save()
 
                 Transaction.objects.create(
-                    user_id=user_id,
+                    user_id=wallet.user_id,
                     trans_type="DEPOSIT",
                     amount=amount_paid,
                     status="SUCCESSFUL",
                     reference=event_data.get("transactionReference", "WEBHOOK-DEP"),
                 )
-            print(f"🚀 [WEBHOOK TRACE] SUCCESS! User ID {user_id} wallet credited with ₦{amount_paid}")
+            print(f"🚀 [WEBHOOK TRACE] SUCCESS! User ID {wallet.user_id} wallet credited with ₦{amount_paid}")
             return Response({"status": "success"}, status=200)
 
+        except Wallet.DoesNotExist:
+            print(f"❌ [WEBHOOK TRACE] Wallet mapping failed for Ref: {account_ref}, Acct: {account_number}")
+            return Response({"status": "error", "message": "Wallet not found"}, status=404)
         except Exception as db_err:
             print(f"❌ [WEBHOOK TRACE] Final processing crash error: {str(db_err)}")
             return Response({"status": "error", "message": str(db_err)}, status=500)
