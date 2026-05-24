@@ -108,6 +108,11 @@ class MonnifyWebhookView(APIView):
 
         from wallet.models import Wallet, Transaction
 
+        FEE = Decimal("50.00")
+        gross_amount = amount_paid
+        net_amount = gross_amount - FEE
+        net_credit = max(net_amount, Decimal("0.00"))
+
         txn_ref = event_data.get("transactionReference")
         if txn_ref and Transaction.objects.filter(reference=txn_ref).exists():
             print(f"⏭️ [WEBHOOK TRACE] Duplicate webhook — transaction {txn_ref} already processed. Skipping.")
@@ -118,22 +123,24 @@ class MonnifyWebhookView(APIView):
                 if user_id is not None:
                     wallet = Wallet.objects.select_for_update().get(user_id=user_id)
                 elif account_number:
-                    print(f"💰 [WEBHOOK TRACE] Looking up by account_number: {account_number}")
+                    print(f"💰 [WEBHOOK TRACE] No reference digits, looking up by account_number: {account_number}")
                     wallet = Wallet.objects.select_for_update().get(account_number=account_number)
                 else:
                     return Response({"status": "error", "message": "No matching wallet strategy"}, status=404)
 
-                wallet.balance += amount_paid
+                wallet.balance += net_credit
                 wallet.save()
 
                 Transaction.objects.create(
                     user_id=wallet.user_id,
                     trans_type="DEPOSIT",
-                    amount=amount_paid,
+                    amount=gross_amount,
+                    fee=FEE,
+                    net_amount=net_credit,
                     status="SUCCESSFUL",
                     reference=event_data.get("transactionReference", "WEBHOOK-DEP"),
                 )
-            print(f"🚀 [WEBHOOK TRACE] SUCCESS! User ID {wallet.user_id} wallet credited with ₦{amount_paid}")
+            print(f"🚀 [WEBHOOK TRACE] SUCCESS! User ID {wallet.user_id} credited ₦{net_credit} (gross ₦{gross_amount} - fee ₦{FEE})")
             return Response({"status": "success"}, status=200)
 
         except Wallet.DoesNotExist:

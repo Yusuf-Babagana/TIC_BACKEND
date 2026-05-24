@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from django.db import models
 from django.conf import settings
 
@@ -32,7 +34,9 @@ class Transaction(models.Model):
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     trans_type = models.CharField(max_length=10, choices=TRANSACTION_TYPES)
     amount = models.DecimalField(max_digits=10, decimal_places=2)
-    reference = models.CharField(max_length=100, unique=True) # From CheapDataHub
+    fee = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0.00'))
+    net_amount = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    reference = models.CharField(max_length=100, unique=True) # From CheapDataHub / Monnify
     status = models.CharField(max_length=12, choices=STATUS_CHOICES, default='PENDING')
     created_at = models.DateTimeField(auto_now_add=True)
 
