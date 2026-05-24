@@ -30,3 +30,26 @@ class VTUPurchaseSerializer(serializers.Serializer):
     card_number = serializers.CharField(required=False, allow_blank=True)
     product_id = serializers.IntegerField(required=False)
     quantity = serializers.IntegerField(required=False, default=1)
+
+
+class UnifiedPurchaseSerializer(serializers.Serializer):
+    CATEGORY_CHOICES = [
+        ("DATA", "Data"),
+        ("AIRTIME", "Airtime"),
+        ("CABLE", "Cable TV"),
+        ("ELECTRICITY", "Electricity"),
+    ]
+
+    category = serializers.ChoiceField(choices=CATEGORY_CHOICES)
+    target_id = serializers.CharField()
+    plan_id = serializers.IntegerField()
+    amount = serializers.DecimalField(max_digits=10, decimal_places=2, required=False)
+
+    def validate(self, attrs):
+        category = attrs.get("category")
+        amount = attrs.get("amount")
+        if category in ("AIRTIME", "ELECTRICITY") and amount is None:
+            raise serializers.ValidationError(
+                {"amount": "amount is required for AIRTIME and ELECTRICITY purchases"}
+            )
+        return attrs

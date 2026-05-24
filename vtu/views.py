@@ -9,10 +9,11 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.authentication import JWTAuthentication
 
-from wallet.models import Transaction
+from wallet.models import Transaction, Wallet
 
 from .models import DataPlan
-from .serializers import DataPlanSerializer, VTUPurchaseSerializer
+from .providers import TRANSACTION_TYPE_MAP
+from .serializers import DataPlanSerializer, VTUPurchaseSerializer, UnifiedPurchaseSerializer
 from .services import CheapDataHubService, CheapDataHubError
 
 logger = logging.getLogger(__name__)
@@ -71,26 +72,29 @@ class VTUPurchaseView(APIView):
         cost = data["amount"]
         user = request.user
 
-        if user.wallet.balance < cost:
-            return Response(
-                {
-                    "status": "false",
-                    "message": "Insufficient TIC wallet balance",
-                },
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
         try:
             with transaction.atomic():
+                wallet = Wallet.objects.select_for_update().get(user=user)
+
+                if wallet.balance < cost:
+                    return Response(
+                        {
+                            "status": "false",
+                            "message": "Insufficient TIC Wallet balance. Please fund your account.",
+                        },
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+
                 result = self._call_provider(service_type, data)
 
-                if result.get("status") == "true":
-                    user.wallet.balance -= cost
-                    user.wallet.save(update_fields=["balance"])
+                provider_status = result.get("status")
+                if provider_status in ("true", True):
+                    wallet.balance -= cost
+                    wallet.save(update_fields=["balance"])
 
                     Transaction.objects.create(
                         user=user,
-                        trans_type=self._map_transaction_type(service_type),
+                        trans_type=TRANSACTION_TYPE_MAP.get(service_type, "DATA"),
                         amount=cost,
                         reference=result.get("reference") or result.get("transaction_id", "N/A"),
                         status="SUCCESSFUL",
@@ -99,7 +103,7 @@ class VTUPurchaseView(APIView):
 
                 Transaction.objects.create(
                     user=user,
-                    trans_type=self._map_transaction_type(service_type),
+                    trans_type=TRANSACTION_TYPE_MAP.get(service_type, "DATA"),
                     amount=cost,
                     reference=f"FAILED-{uuid.uuid4().hex[:12].upper()}",
                     status="FAILED",
@@ -118,7 +122,7 @@ class VTUPurchaseView(APIView):
             )
             Transaction.objects.create(
                 user=user,
-                trans_type=self._map_transaction_type(service_type),
+                trans_type=TRANSACTION_TYPE_MAP.get(service_type, "DATA"),
                 amount=cost,
                 reference=f"FAILED-{uuid.uuid4().hex[:12].upper()}",
                 status="FAILED",
@@ -136,7 +140,7 @@ class VTUPurchaseView(APIView):
             )
             Transaction.objects.create(
                 user=user,
-                trans_type=self._map_transaction_type(service_type),
+                trans_type=TRANSACTION_TYPE_MAP.get(service_type, "DATA"),
                 amount=cost,
                 reference=f"FAILED-{uuid.uuid4().hex[:12].upper()}",
                 status="FAILED",
@@ -182,8 +186,118 @@ class VTUPurchaseView(APIView):
             raise ValueError(f"Unsupported service_type: {service_type}")
         return handler(data)
 
+
+class UnifiedPurchaseView(APIView):
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        serializer = UnifiedPurchaseSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        data = serializer.validated_data
+        category = data["category"]
+        target_id = data["target_id"]
+        plan_id = data["plan_id"]
+        amount = data.get("amount")
+        user = request.user
+
+        if category in ("AIRTIME", "ELECTRICITY"):
+            cost = amount
+        else:
+            try:
+                plan = DataPlan.objects.get(plan_id=plan_id)
+            except DataPlan.DoesNotExist:
+                return Response(
+                    {"status": "false", "message": f"Unknown plan_id: {plan_id}"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            cost = plan.price
+
+        try:
+            with transaction.atomic():
+                wallet = Wallet.objects.select_for_update().get(user=user)
+
+                if wallet.balance < cost:
+                    return Response(
+                        {"status": "false", "message": "Insufficient Balance"},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+
+                payload = self._build_payload(category, plan_id, target_id, amount, user)
+                result = CheapDataHubService.purchase(category, payload)
+
+                provider_status = result.get("status")
+                if provider_status in ("true", True):
+                    wallet.balance -= cost
+                    wallet.save(update_fields=["balance"])
+
+                    Transaction.objects.create(
+                        user=user,
+                        trans_type=TRANSACTION_TYPE_MAP[category],
+                        amount=cost,
+                        reference=result.get("reference") or result.get("transaction_id", "N/A"),
+                        status="SUCCESSFUL",
+                    )
+                    return Response(result, status=status.HTTP_200_OK)
+
+                msg = result.get("message") or result.get("error") or "Provider request failed"
+                raise CheapDataHubError(msg)
+
+        except CheapDataHubError as e:
+            logger.error(
+                "VTU unified purchase error: category=%s cost=%s user=%s error=%s masked_key=%s",
+                category, cost, user.id, str(e),
+                _mask_key(settings.CHEAPDATAHUB_API_KEY),
+            )
+            Transaction.objects.create(
+                user=user,
+                trans_type=TRANSACTION_TYPE_MAP[category],
+                amount=cost,
+                reference=f"FAILED-{uuid.uuid4().hex[:12].upper()}",
+                status="FAILED",
+            )
+            return Response(
+                {"status": "false", "message": str(e)},
+                status=status.HTTP_502_BAD_GATEWAY,
+            )
+
+        except Exception as e:
+            logger.error(
+                "VTU unified purchase crash: category=%s cost=%s user=%s error=%s masked_key=%s",
+                category, cost, user.id, str(e),
+                _mask_key(settings.CHEAPDATAHUB_API_KEY),
+            )
+            Transaction.objects.create(
+                user=user,
+                trans_type=TRANSACTION_TYPE_MAP[category],
+                amount=cost,
+                reference=f"FAILED-{uuid.uuid4().hex[:12].upper()}",
+                status="FAILED",
+            )
+            return Response(
+                {
+                    "status": "false",
+                    "message": "Service temporarily unavailable. Please try again.",
+                },
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+
     @staticmethod
-    def _map_transaction_type(service_type):
-        return {"AIRTIME": "AIRTIME", "DATA": "DATA", "ELECTRICITY": "UTILITY", "CABLE": "UTILITY", "EXAMPIN": "EXAMPIN"}.get(
-            service_type, "DATA"
-        )
+    def _build_payload(category, plan_id, target_id, amount, user):
+        if category == "DATA":
+            return {"bundle_id": plan_id, "phone_number": target_id}
+        if category == "AIRTIME":
+            return {"provider_id": plan_id, "phone_number": target_id, "amount": str(amount)}
+        if category == "CABLE":
+            return {"plan_id": plan_id, "cardnumber": target_id, "phone": user.phone_number or target_id}
+        if category == "ELECTRICITY":
+            return {
+                "disco_id": plan_id,
+                "meter_number": target_id,
+                "amount": str(amount),
+                "meter_type": "prepaid",
+                "phone": target_id,
+            }
+        raise CheapDataHubError(f"Unsupported category: {category}")

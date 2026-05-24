@@ -49,6 +49,20 @@ class CheapDataHubService:
 
         return body
 
+    CATEGORY_ENDPOINTS = {
+        "DATA": "/data/purchase/",
+        "AIRTIME": "/airtime/purchase/",
+        "CABLE": "/cable/purchase/",
+        "ELECTRICITY": "/electricity/purchase/",
+    }
+
+    @classmethod
+    def purchase(cls, category, payload):
+        endpoint = cls.CATEGORY_ENDPOINTS.get(category)
+        if not endpoint:
+            raise CheapDataHubError(f"Unsupported category: {category}")
+        return cls._call("POST", endpoint, payload)
+
     @classmethod
     def fetch_balance(cls):
         return cls._call("GET", "/wallet/balance/")

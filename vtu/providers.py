@@ -3,7 +3,7 @@ PROVIDERS = {
         "MTN": 1,
         "GLO": 2,
         "AIRTEL": 3,
-        "9MOBILE": 4
+        "9MOBILE": 4,
     },
     "electricity": {
         "AEDC": 1,
@@ -15,11 +15,31 @@ PROVIDERS = {
         "JED": 7,
         "EEDC": 8,
         "YOLA": 9,
-        "BENIN": 10
+        "BENIN": 10,
     },
     "cable": {
         "GOTV": 1,
         "DSTV": 2,
-        "STARTIMES": 3
-    }
+        "STARTIMES": 3,
+    },
+}
+
+
+def resolve_network_id(name):
+    return PROVIDERS["networks"].get(name.upper())
+
+
+def resolve_disco_id(name):
+    return PROVIDERS["electricity"].get(name.upper())
+
+
+def resolve_cable_id(name):
+    return PROVIDERS["cable"].get(name.upper())
+
+
+TRANSACTION_TYPE_MAP = {
+    "DATA": "DATA",
+    "AIRTIME": "AIRTIME",
+    "CABLE": "UTILITY",
+    "ELECTRICITY": "UTILITY",
 }
