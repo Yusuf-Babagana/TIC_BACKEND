@@ -51,105 +51,50 @@ class MonnifyWebhookView(APIView):
     parser_classes = [RawJsonPassthroughParser]
 
     def post(self, request, *args, **kwargs):
-        print("🔔 [WEBHOOK TRACE] Endpoint hit successfully.")
         raw_body = request.data
 
-        # 1. Signature validation tracking
-        monnify_signature = request.headers.get("monnify-signature", "")
-        computed_signature = hmac.new(
-            settings.MONNIFY_SECRET_KEY.encode("utf-8"),
-            raw_body,
-            hashlib.sha256,
-        ).hexdigest()
+        # 1. TRACE INPUT
+        print(f"DEBUG_TRACE: Received Request Length: {len(raw_body)} bytes")
 
-        if computed_signature != monnify_signature:
-            print(f"⚠️ [WEBHOOK TRACE] Signature mismatch! Monnify sent: {monnify_signature}, Computed: {computed_signature}")
-            if not settings.DEBUG:
-                print("❌ [WEBHOOK TRACE] Rejecting request due to production safety rules.")
-                return Response({"status": "error", "message": "Invalid signature"}, status=400)
-            print("🔧 [DEBUG OVERRIDE] Proceeding anyway because DEBUG is enabled.")
+        # 2. SIGNATURE TRACE
+        monnify_signature = request.headers.get("monnify-signature", "MISSING")
+        print(f"DEBUG_TRACE: Monnify Signature: {monnify_signature}")
 
-        # 2. Parse JSON safely
+        # 3. JSON PARSE TRACE
         try:
             payload = json.loads(raw_body.decode("utf-8"))
+            print(f"DEBUG_TRACE: Parsed Payload: {json.dumps(payload, indent=2)}")
         except Exception as e:
-            print(f"❌ [WEBHOOK TRACE] JSON Decoding Crash: {str(e)}")
-            return Response({"status": "error", "message": "Invalid JSON encoding"}, status=400)
+            print(f"DEBUG_TRACE: JSON CRASH: {str(e)}")
+            return Response({"error": "JSON parse error"}, status=400)
 
-        event_type = payload.get("eventType", "")
+        # 4. REFERENCE EXTRACTION TRACE
         event_data = payload.get("eventData", {})
-        print(f"📋 [WEBHOOK TRACE] Event: {event_type} | Payment Status: {event_data.get('paymentStatus')}")
+        ref = event_data.get("destinationAccountReference") or event_data.get("paymentReference")
+        print(f"DEBUG_TRACE: Extracted Reference: {ref}")
 
-        # 3. Flexible Reference and Amount Extraction
-        account_ref = (
-            event_data.get("destinationAccountReference")
-            or event_data.get("paymentReference")
-            or (event_data.get("product") or {}).get("reference")
-        )
-        account_number = event_data.get("destinationAccountNumber") or event_data.get("accountNumber")
-        amount_paid = Decimal(str(event_data.get("amountPaid", event_data.get("amount", "0.00"))))
-
-        if account_ref:
-            ref_str = str(account_ref).strip()
-            print(f"📋 [WEBHOOK TRACE] Raw Reference caught: {ref_str}")
-            digit_match = re.findall(r"\d+", ref_str)
-            if digit_match:
-                user_id = digit_match[0]
-                print(f"🎯 [WEBHOOK TRACE] Extracted clean Integer User ID: {user_id}")
-            else:
-                print(f"❌ [WEBHOOK TRACE] No digits found in reference: {ref_str}")
-                return Response({"status": "error", "message": "No numeric user ID in reference"}, status=400)
-        elif account_number:
-            print(f"📋 [WEBHOOK TRACE] No reference, falling back to account_number: {account_number}")
-            user_id = None
-        else:
-            print("❌ [WEBHOOK TRACE] Failure: No reference, no account number in payload.")
-            return Response({"status": "error", "message": "Missing reference"}, status=400)
-
-        from wallet.models import Wallet, Transaction
-
-        FEE = Decimal("50.00")
-        gross_amount = amount_paid
-        net_amount = gross_amount - FEE
-        net_credit = max(net_amount, Decimal("0.00"))
-
-        txn_ref = event_data.get("transactionReference")
-        if txn_ref and Transaction.objects.filter(reference=txn_ref).exists():
-            print(f"⏭️ [WEBHOOK TRACE] Duplicate webhook — transaction {txn_ref} already processed. Skipping.")
-            return Response({"status": "ignored", "reason": "duplicate"}, status=200)
-
+        # 5. USER LOOKUP TRACE
         try:
-            with transaction.atomic():
-                if user_id is not None:
-                    wallet = Wallet.objects.select_for_update().get(user_id=user_id)
-                elif account_number:
-                    print(f"💰 [WEBHOOK TRACE] No reference digits, looking up by account_number: {account_number}")
-                    wallet = Wallet.objects.select_for_update().get(account_number=account_number)
-                else:
-                    return Response({"status": "error", "message": "No matching wallet strategy"}, status=404)
+            import re
 
-                wallet.balance += net_credit
-                wallet.save()
+            digit_match = re.findall(r"\d+", str(ref))
+            user_id = digit_match[0] if digit_match else None
+            print(f"DEBUG_TRACE: Resolved User ID: {user_id}")
 
-                Transaction.objects.create(
-                    user_id=wallet.user_id,
-                    trans_type="DEPOSIT",
-                    amount=gross_amount,
-                    fee=FEE,
-                    net_amount=net_credit,
-                    status="SUCCESSFUL",
-                    reference=event_data.get("transactionReference", "WEBHOOK-DEP"),
-                )
-            print(f"🚀 [WEBHOOK TRACE] SUCCESS! User ID {wallet.user_id} credited ₦{net_credit} (gross ₦{gross_amount} - fee ₦{FEE})")
-            return Response({"status": "success"}, status=200)
+            from wallet.models import Wallet
 
-        except Wallet.DoesNotExist:
-            ref_display = account_ref or account_number
-            print(f"❌ [WEBHOOK TRACE] Wallet mapping failed for Ref: {ref_display}")
-            return Response({"status": "error", "message": "Wallet not found"}, status=404)
-        except Exception as db_err:
-            print(f"❌ [WEBHOOK TRACE] Final processing crash error: {str(db_err)}")
-            return Response({"status": "error", "message": str(db_err)}, status=500)
+            wallet = Wallet.objects.get(user_id=user_id)
+            print(f"DEBUG_TRACE: Wallet found! Current Balance: {wallet.balance}")
+
+            # 6. CALCULATION TRACE
+            amount = Decimal(str(event_data.get("amountPaid", "0")))
+            print(f"DEBUG_TRACE: Amount to credit: {amount}")
+
+        except Exception as e:
+            print(f"DEBUG_TRACE: DATABASE/LOOKUP CRASH: {str(e)}")
+            return Response({"error": "Lookup failed"}, status=500)
+
+        return Response({"status": "debug_complete"}, status=200)
 
 
 class TransactionHistoryView(generics.ListAPIView):
