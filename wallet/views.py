@@ -3,6 +3,7 @@ import hmac
 import logging
 import re
 import traceback
+from decimal import Decimal
 
 from django.conf import settings
 from django.db import transaction
@@ -49,59 +50,58 @@ class MonnifyWebhookView(APIView):
         ).hexdigest()
         return hmac.compare_digest(signature, expected)
 
-    @staticmethod
-    def _extract_account_reference(data):
-        return (
-            data.get("metaData", {}).get("accountReference")
-            or data.get("eventData", {}).get("metaData", {}).get("accountReference")
-            or data.get("eventData", {}).get("product", {}).get("reference")
-        )
+    def post(self, request, *args, **kwargs):
+        print("📨 INCOMING MONNIFY WEBHOOK BODY:", request.data)
 
-    def post(self, request):
         if not self._verify_signature(request):
+            print("❌ Webhook signature verification failed")
             return Response({"status": "invalid signature"}, status=403)
 
-        data = request.data
-        event_data = data.get("eventData", data)
+        payload = request.data
+        event_type = payload.get("eventType")
+        event_data = payload.get("eventData", {})
 
-        if event_data.get("paymentStatus") == "PAID":
-            ref = event_data.get("paymentReference")
-            amount = float(event_data.get("amountPaid", 0))
+        if event_type == "SUCCESSFUL_TRANSACTION" or event_data.get("paymentStatus") == "PAID":
+            account_ref = (
+                event_data.get("destinationAccountReference")
+                or event_data.get("paymentReference")
+            )
+            amount_paid = Decimal(str(event_data.get("amountPaid", 0)))
 
-            account_ref = self._extract_account_reference(data)
-            customer_email = event_data.get("customer", {}).get("email")
+            if account_ref:
+                try:
+                    user_id = account_ref.replace("TIC-", "").strip()
 
-            try:
-                with transaction.atomic():
-                    if account_ref:
+                    with transaction.atomic():
                         wallet = Wallet.objects.select_for_update().get(
-                            account_reference=account_ref
+                            user_id=user_id
                         )
-                    elif customer_email:
-                        wallet = Wallet.objects.select_for_update().get(
-                            user__email=customer_email
-                        )
-                    else:
-                        return Response(
-                            {"status": "error", "message": "No wallet identifier found"},
-                            status=400,
+                        wallet.balance += amount_paid
+                        wallet.save(update_fields=["balance"])
+
+                        Transaction.objects.create(
+                            user_id=user_id,
+                            trans_type="DEPOSIT",
+                            amount=amount_paid,
+                            status="SUCCESSFUL",
+                            reference=event_data.get("transactionReference"),
                         )
 
-                    wallet.balance += amount
-                    wallet.save(update_fields=["balance"])
+                    print(f"✅ Successfully credited User ID {user_id} with ₦{amount_paid}")
+                    return Response({"status": "success"}, status=200)
 
-                    Transaction.objects.create(
-                        user=wallet.user,
-                        trans_type="DEPOSIT",
-                        amount=amount,
-                        reference=ref,
-                        status="SUCCESSFUL",
+                except Wallet.DoesNotExist:
+                    print(f"❌ No wallet found for account_ref: {account_ref}")
+                    return Response(
+                        {"status": "error", "message": "Wallet not found"},
+                        status=404,
                     )
-
-                return Response({"status": "success"}, status=200)
-
-            except Wallet.DoesNotExist:
-                return Response({"status": "error", "message": "Wallet not found"}, status=404)
+                except Exception as e:
+                    print(f"❌ Webhook database processing error: {str(e)}")
+                    return Response(
+                        {"status": "error", "message": str(e)},
+                        status=500,
+                    )
 
         return Response({"status": "ignored"}, status=200)
 
