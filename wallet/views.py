@@ -108,6 +108,11 @@ class MonnifyWebhookView(APIView):
 
         from wallet.models import Wallet, Transaction
 
+        txn_ref = event_data.get("transactionReference")
+        if txn_ref and Transaction.objects.filter(reference=txn_ref).exists():
+            print(f"⏭️ [WEBHOOK TRACE] Duplicate webhook — transaction {txn_ref} already processed. Skipping.")
+            return Response({"status": "ignored", "reason": "duplicate"}, status=200)
+
         try:
             with transaction.atomic():
                 if user_id is not None:
