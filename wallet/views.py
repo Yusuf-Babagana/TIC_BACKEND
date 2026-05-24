@@ -1,5 +1,6 @@
 import hashlib
 import hmac
+import json
 import logging
 import re
 import traceback
@@ -38,58 +39,57 @@ class WalletBalanceView(APIView):
 @method_decorator(csrf_exempt, name="dispatch")
 class MonnifyWebhookView(APIView):
     permission_classes = []
+    authentication_classes = []
 
-    def _verify_signature(self, request):
-        signature = request.headers.get("monnify-signature")
-        if not signature:
-            return False
+    def post(self, request, *args, **kwargs):
+        print("🔔 [WEBHOOK TRACE] Endpoint hit by external server.")
 
-        if settings.DEBUG:
-            return True
-
+        # 1. Capture the body safely before DRF alters anything further
         try:
             raw_body = request._request.body
-        except Exception:
-            import json
+            print("📦 [WEBHOOK TRACE] Raw body bytes captured successfully.")
+        except Exception as e:
+            print(f"❌ [WEBHOOK TRACE] Failed to read raw body stream: {str(e)}")
             raw_body = json.dumps(request.data).encode("utf-8")
 
-        expected = hmac.new(
+        # 2. Extract and Log Headers
+        monnify_signature = request.headers.get("monnify-signature", "")
+        print(f"🔑 [WEBHOOK TRACE] Incoming Monnify Signature: {monnify_signature}")
+
+        # 3. Calculate and Verify Signature
+        computed_signature = hmac.new(
             settings.MONNIFY_SECRET_KEY.encode("utf-8"),
             raw_body,
             hashlib.sha256,
         ).hexdigest()
-        return hmac.compare_digest(signature, expected)
 
-    def post(self, request, *args, **kwargs):
-        print("📨 INCOMING MONNIFY WEBHOOK BODY:", request.data)
+        print(f"🔑 [WEBHOOK TRACE] Computed Signature: {computed_signature}")
 
-        if not self._verify_signature(request):
-            print("❌ Webhook signature verification failed")
-            return Response({"status": "invalid signature"}, status=403)
+        # Dev Override: If in DEBUG mode, pass even if signature fails
+        if computed_signature != monnify_signature and not settings.DEBUG:
+            print("❌ [WEBHOOK TRACE] Signature verification FAILED. Rejecting request.")
+            return Response({"status": "error", "message": "Invalid signature"}, status=400)
 
-        print("📨 INCOMING MONNIFY WEBHOOK BODY:", request.data)
+        print("✅ [WEBHOOK TRACE] Signature verified or allowed by DEBUG override.")
 
+        # 4. Parse Event Data
         payload = request.data
         event_type = payload.get("eventType")
         event_data = payload.get("eventData", {})
+        print(f"📋 [WEBHOOK TRACE] Event Type: {event_type}, Status: {event_data.get('paymentStatus')}")
 
-        if event_type == "SUCCESSFUL_TRANSACTION" or event_data.get("paymentStatus") == "PAID":
-            account_ref = (
-                event_data.get("destinationAccountReference")
-                or event_data.get("paymentReference")
-            )
+        if event_type == "SUCCESSFUL_TRANSACTION" and event_data.get("paymentStatus") == "PAID":
+            account_ref = event_data.get("destinationAccountReference")
             amount_paid = Decimal(str(event_data.get("amountPaid", 0)))
+            print(f"💰 [WEBHOOK TRACE] Processing deposit for Ref: {account_ref}, Amount: {amount_paid}")
 
             if account_ref:
                 try:
                     user_id = account_ref.replace("TIC-", "").strip()
-
                     with transaction.atomic():
-                        wallet = Wallet.objects.select_for_update().get(
-                            user_id=user_id
-                        )
+                        wallet = Wallet.objects.select_for_update().get(user_id=user_id)
                         wallet.balance += amount_paid
-                        wallet.save(update_fields=["balance"])
+                        wallet.save()
 
                         Transaction.objects.create(
                             user_id=user_id,
@@ -98,23 +98,13 @@ class MonnifyWebhookView(APIView):
                             status="SUCCESSFUL",
                             reference=event_data.get("transactionReference"),
                         )
-
-                    print(f"✅ Successfully credited User ID {user_id} with ₦{amount_paid}")
+                    print(f"🚀 [WEBHOOK TRACE] SUCCESS! User {user_id} wallet credited with ₦{amount_paid}")
                     return Response({"status": "success"}, status=200)
+                except Exception as db_err:
+                    print(f"❌ [WEBHOOK TRACE] Database/Wallet update crash: {str(db_err)}")
+                    return Response({"status": "error", "message": str(db_err)}, status=500)
 
-                except Wallet.DoesNotExist:
-                    print(f"❌ No wallet found for account_ref: {account_ref}")
-                    return Response(
-                        {"status": "error", "message": "Wallet not found"},
-                        status=404,
-                    )
-                except Exception as e:
-                    print(f"❌ Webhook database processing error: {str(e)}")
-                    return Response(
-                        {"status": "error", "message": str(e)},
-                        status=500,
-                    )
-
+        print("⚠️ [WEBHOOK TRACE] Webhook event was ignored (Not a successful paid transaction).")
         return Response({"status": "ignored"}, status=200)
 
 

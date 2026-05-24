@@ -11,8 +11,6 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.authentication import JWTAuthentication
 
-from wallet.models import Transaction, Wallet
-
 from .constants import get_data_plan, get_cable_plan, DATA_PLANS
 from .providers import TRANSACTION_TYPE_MAP
 from .serializers import UnifiedPurchaseSerializer
@@ -51,6 +49,8 @@ class UnifiedPurchaseView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
+        from wallet.models import Wallet, Transaction
+
         serializer = UnifiedPurchaseSerializer(data=request.data)
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
