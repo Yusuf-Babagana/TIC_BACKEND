@@ -3,6 +3,8 @@ import uuid
 
 from django.conf import settings
 from django.db import transaction
+from django.utils.decorators import method_decorator
+from django.views.decorators.csrf import csrf_exempt
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -27,8 +29,8 @@ def _mask_key(key):
     return key[:6] + "****" + key[-4:]
 
 
+@method_decorator(csrf_exempt, name="dispatch")
 class DataPlanListView(APIView):
-    authentication_classes = [JWTAuthentication]
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
@@ -36,31 +38,14 @@ class DataPlanListView(APIView):
         provider = request.query_params.get("provider", "").lower()
 
         if category == "DATA":
-            plans = [
-                p for p in DATA_PLANS
-                if not provider or p["provider"] == provider
-            ]
-            plans.sort(key=lambda p: p["price"])
-            return Response(plans)
+            filtered = [p for p in DATA_PLANS if p["provider"] == provider]
+            return Response(filtered, status=200)
 
         if category == "CABLE":
-            plans = [
-                p for p in CABLE_PLANS
-                if not provider or p["provider"] == provider
-            ]
-            plans.sort(key=lambda p: p["price"])
-            return Response(plans)
+            filtered = [c for c in CABLE_PLANS if c["provider"] == provider.upper()]
+            return Response(filtered, status=200)
 
-        if category:
-            return Response(
-                {"status": "false", "message": f"Unknown category: {category}"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        return Response(
-            {"status": "false", "message": "category query parameter is required (DATA or CABLE)"},
-            status=status.HTTP_400_BAD_REQUEST,
-        )
+        return Response([], status=400)
 
 
 class UnifiedPurchaseView(APIView):
