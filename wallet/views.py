@@ -43,19 +43,20 @@ class MonnifyWebhookView(APIView):
         signature = request.headers.get("monnify-signature")
         if not signature:
             return False
+        raw_body = request.body
         expected = hmac.new(
             settings.MONNIFY_SECRET_KEY.encode("utf-8"),
-            request.body,
+            raw_body,
             hashlib.sha512,
         ).hexdigest()
         return hmac.compare_digest(signature, expected)
 
     def post(self, request, *args, **kwargs):
-        print("📨 INCOMING MONNIFY WEBHOOK BODY:", request.data)
-
         if not self._verify_signature(request):
             print("❌ Webhook signature verification failed")
             return Response({"status": "invalid signature"}, status=403)
+
+        print("📨 INCOMING MONNIFY WEBHOOK BODY:", request.data)
 
         payload = request.data
         event_type = payload.get("eventType")
