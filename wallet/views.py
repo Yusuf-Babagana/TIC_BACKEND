@@ -52,47 +52,100 @@ class MonnifyWebhookView(APIView):
 
     def post(self, request):
         raw_body = request.data
+
+        # 1. Parse payload
         try:
             payload = json.loads(raw_body.decode("utf-8"))
-            print(f"DEBUG: WEBHOOK RECEIVED: {payload}")
+        except Exception as e:
+            print(f"DEBUG: JSON PARSE ERROR: {str(e)}")
+            return Response({"error": "Invalid JSON"}, status=400)
 
-            event_data = payload.get("eventData", {})
+        # 2. Extract event data
+        event_type = payload.get("eventType", "")
+        event_data = payload.get("eventData", {})
+        print(f"DEBUG: eventType={event_type}")
 
-            amount = Decimal(str(event_data.get("amountPaid", "0")))
-            account_number = event_data.get("destinationAccountNumber")
-            ref = event_data.get("destinationAccountReference") or event_data.get("paymentReference")
-            txn_ref = event_data.get("transactionReference")
+        amount_paid = Decimal(str(event_data.get("amountPaid", "0")))
+        account_number = event_data.get("destinationAccountNumber")
+        txn_ref = str(event_data.get("transactionReference", ""))
+        account_ref = str(event_data.get("destinationAccountReference") or event_data.get("paymentReference") or "")
 
-            print(f"DEBUG: amount={amount} account={account_number} ref={ref} txn_ref={txn_ref}")
+        print(f"DEBUG: amount={amount_paid} account={account_number} txn_ref={txn_ref} account_ref={account_ref}")
 
-            from wallet.models import Wallet, Transaction
+        from wallet.models import Wallet, Transaction
 
-            # Try to find the wallet by account_number first
-            wallet = None
-            if account_number:
+        # 3. Resolve user_id from transactionReference (format: MNFY|16|...)
+        user_id = None
+        parts = txn_ref.split("|")
+        if len(parts) >= 2 and parts[1].isdigit():
+            user_id = int(parts[1])
+            print(f"DEBUG: Extracted user_id={user_id} from txn_ref")
+
+        # 4. Find the correct wallet — NO .first() fallback
+        wallet = None
+
+        # Strategy A: user_id from txn_ref (most reliable)
+        if user_id is not None:
+            try:
+                wallet = Wallet.objects.get(user_id=user_id)
+                print(f"DEBUG: Found wallet by user_id={user_id}: account={wallet.account_number}")
+            except Wallet.DoesNotExist:
+                print(f"DEBUG: No wallet for user_id={user_id}")
+
+        # Strategy B: account_number from payload
+        if wallet is None and account_number:
+            try:
+                wallet = Wallet.objects.get(account_number=account_number)
+                print(f"DEBUG: Found wallet by account_number={account_number}: user={wallet.user_id}")
+            except Wallet.DoesNotExist:
+                print(f"DEBUG: No wallet for account_number={account_number}")
+
+        # Strategy C: digits from account_ref (legacy format like ABDTIC-16)
+        if wallet is None and account_ref and account_ref != "None":
+            digit_match = re.findall(r"\d+", account_ref)
+            if digit_match:
                 try:
-                    wallet = Wallet.objects.get(account_number=account_number)
-                    print(f"DEBUG: Found wallet by account_number: user={wallet.user_id}")
+                    wallet = Wallet.objects.get(user_id=int(digit_match[0]))
+                    print(f"DEBUG: Found wallet by ref digits={digit_match[0]}: account={wallet.account_number}")
                 except Wallet.DoesNotExist:
-                    print(f"DEBUG: No wallet for account_number={account_number}")
+                    print(f"DEBUG: No wallet for ref user_id={digit_match[0]}")
 
-            # Fallback: grab any wallet
-            if wallet is None:
-                wallet = Wallet.objects.first()
-                print(f"DEBUG: Fallback to first wallet: user={wallet.user_id}")
+        if wallet is None:
+            print(f"DEBUG: CRITICAL — wallet not found for any strategy")
+            return Response({"error": "Wallet not found"}, status=404)
 
-            Transaction.objects.create(
-                user=wallet.user,
-                trans_type="DEPOSIT",
-                amount=amount,
-                status="FORCE_RECORDED_TEST",
-                reference=txn_ref or f"FORCE-{account_number or 'unknown'}",
-            )
-            print("DEBUG: Force-recorded test transaction!")
-            return Response({"status": "force_recorded"}, status=200)
+        # 5. Idempotency check
+        if txn_ref and txn_ref != "None":
+            if Transaction.objects.filter(reference=txn_ref).exists():
+                print(f"DEBUG: Duplicate — {txn_ref} already processed")
+                return Response({"status": "ignored"}, status=200)
+
+        # 6. Atomic credit + fee deduction
+        try:
+            with transaction.atomic():
+                locked = Wallet.objects.select_for_update().get(pk=wallet.pk)
+
+                FEE = Decimal("50.00")
+                net_credit = max(amount_paid - FEE, Decimal("0.00"))
+
+                locked.balance += net_credit
+                locked.save()
+
+                Transaction.objects.create(
+                    user=locked.user,
+                    trans_type="DEPOSIT",
+                    amount=amount_paid,
+                    fee=FEE,
+                    net_amount=net_credit,
+                    status="SUCCESSFUL",
+                    reference=txn_ref or f"WEBHOOK-{wallet.user_id}",
+                )
+
+            print(f"DEBUG: SUCCESS — User {locked.user_id} ({locked.user.username}) credited ₦{net_credit}")
+            return Response({"status": "success"}, status=200)
 
         except Exception as e:
-            print(f"DEBUG: FATAL ERROR: {str(e)}")
+            print(f"DEBUG: ATOMIC CREDIT ERROR: {str(e)}")
             return Response({"error": str(e)}, status=500)
 
 
