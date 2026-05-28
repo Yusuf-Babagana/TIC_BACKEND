@@ -67,8 +67,10 @@ class MonnifyWebhookView(APIView):
 
         amount_paid = Decimal(str(event_data.get("amountPaid", "0")))
         account_number = event_data.get("destinationAccountNumber")
-        txn_ref = str(event_data.get("transactionReference", ""))
-        account_ref = str(event_data.get("destinationAccountReference") or event_data.get("paymentReference") or "")
+        txn_ref_raw = event_data.get("transactionReference")
+        txn_ref = str(txn_ref_raw) if txn_ref_raw else ""
+        account_ref_raw = event_data.get("destinationAccountReference") or event_data.get("paymentReference")
+        account_ref = str(account_ref_raw) if account_ref_raw else ""
 
         print(f"DEBUG: amount={amount_paid} account={account_number} txn_ref={txn_ref} account_ref={account_ref}")
 
