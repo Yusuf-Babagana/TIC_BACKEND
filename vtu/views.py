@@ -1,5 +1,6 @@
 import logging
 import uuid
+from decimal import Decimal
 
 from django.conf import settings
 from django.db import transaction
@@ -172,3 +173,180 @@ class UnifiedPurchaseView(APIView):
                 "phone": target_id,
             }
         raise CheapDataHubError(f"Unsupported category: {category}")
+
+
+def _execute_purchase(user, category, cost, provider_payload):
+    from wallet.models import Wallet, Transaction
+
+    try:
+        with transaction.atomic():
+            wallet = Wallet.objects.select_for_update().get(user=user)
+
+            if wallet.balance < cost:
+                return Response(
+                    {"status": "false", "message": "Insufficient Balance"},
+                    status=status.HTTP_402_PAYMENT_REQUIRED,
+                )
+
+            result = CheapDataHubService.purchase(category, provider_payload)
+
+            provider_status = result.get("status")
+            if provider_status in ("true", True):
+                wallet.balance -= cost
+                wallet.save(update_fields=["balance"])
+
+                Transaction.objects.create(
+                    user=user,
+                    trans_type=TRANSACTION_TYPE_MAP[category],
+                    amount=cost,
+                    reference=result.get("reference") or result.get("transaction_id", "N/A"),
+                    status="SUCCESSFUL",
+                )
+                return Response(result, status=status.HTTP_200_OK)
+
+            msg = result.get("message") or result.get("error") or "Provider request failed"
+            raise CheapDataHubError(msg)
+
+    except CheapDataHubError as e:
+        logger.error(
+            "VTU purchase error: category=%s cost=%s user=%s error=%s masked_key=%s",
+            category, cost, user.id, str(e),
+            _mask_key(settings.CHEAPDATAHUB_API_KEY),
+        )
+        Transaction.objects.create(
+            user=user,
+            trans_type=TRANSACTION_TYPE_MAP[category],
+            amount=cost,
+            reference=f"FAILED-{uuid.uuid4().hex[:12].upper()}",
+            status="FAILED",
+        )
+        return Response(
+            {"status": "false", "message": str(e)},
+            status=status.HTTP_502_BAD_GATEWAY,
+        )
+
+    except Exception as e:
+        logger.error(
+            "VTU purchase crash: category=%s cost=%s user=%s error=%s masked_key=%s",
+            category, cost, user.id, str(e),
+            _mask_key(settings.CHEAPDATAHUB_API_KEY),
+        )
+        Transaction.objects.create(
+            user=user,
+            trans_type=TRANSACTION_TYPE_MAP[category],
+            amount=cost,
+            reference=f"FAILED-{uuid.uuid4().hex[:12].upper()}",
+            status="FAILED",
+        )
+        return Response(
+            {
+                "status": "false",
+                "message": "Service temporarily unavailable. Please try again.",
+            },
+            status=status.HTTP_503_SERVICE_UNAVAILABLE,
+        )
+
+
+class AirtimePurchaseView(APIView):
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        provider_id = request.data.get("provider_id")
+        phone_number = request.data.get("phone_number")
+        amount = request.data.get("amount")
+
+        if not all([provider_id, phone_number, amount]):
+            return Response(
+                {"status": "false", "message": "provider_id, phone_number, and amount are required"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        cost = Decimal(str(amount))
+        payload = {
+            "provider_id": int(provider_id),
+            "phone_number": phone_number,
+            "amount": str(amount),
+        }
+        return _execute_purchase(request.user, "AIRTIME", cost, payload)
+
+
+class DataPurchaseView(APIView):
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        bundle_id = request.data.get("bundle_id")
+        phone_number = request.data.get("phone_number")
+
+        if not all([bundle_id, phone_number]):
+            return Response(
+                {"status": "false", "message": "bundle_id and phone_number are required"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        plan = get_data_plan(bundle_id)
+        if plan is None:
+            return Response(
+                {"status": "false", "message": f"Unknown bundle_id: {bundle_id}"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        cost = plan["price"]
+        payload = {"bundle_id": int(bundle_id), "phone_number": phone_number}
+        return _execute_purchase(request.user, "DATA", cost, payload)
+
+
+class ElectricityPurchaseView(APIView):
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        disco_id = request.data.get("disco_id")
+        meter_number = request.data.get("meter_number")
+        amount = request.data.get("amount")
+        meter_type = request.data.get("meter_type", "prepaid")
+        phone = request.data.get("phone")
+
+        if not all([disco_id, meter_number, amount, phone]):
+            return Response(
+                {"status": "false", "message": "disco_id, meter_number, amount, and phone are required"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        cost = Decimal(str(amount))
+        payload = {
+            "disco_id": int(disco_id),
+            "meter_number": meter_number,
+            "amount": str(amount),
+            "meter_type": meter_type,
+            "phone": phone,
+        }
+        return _execute_purchase(request.user, "ELECTRICITY", cost, payload)
+
+
+class CablePurchaseView(APIView):
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        plan_id = request.data.get("plan_id")
+        card_number = request.data.get("cardnumber") or request.data.get("card_number")
+        phone = request.data.get("phone")
+
+        if not all([plan_id, card_number, phone]):
+            return Response(
+                {"status": "false", "message": "plan_id, cardnumber, and phone are required"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        plan = get_cable_plan(plan_id)
+        if plan is None:
+            return Response(
+                {"status": "false", "message": f"Unknown plan_id: {plan_id}"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        cost = plan["price"]
+        payload = {"plan_id": int(plan_id), "card_number": card_number, "phone": phone}
+        return _execute_purchase(request.user, "CABLE", cost, payload)
