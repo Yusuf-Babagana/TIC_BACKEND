@@ -66,7 +66,13 @@ class MonnifyWebhookView(APIView):
         print(f"DEBUG: eventType={event_type}")
 
         amount_paid = Decimal(str(event_data.get("amountPaid", "0")))
-        account_number = event_data.get("destinationAccountNumber")
+
+        # ⚡ Try BOTH flat AND nested accountNumber paths
+        account_number = (
+            event_data.get("destinationAccountNumber")
+            or (event_data.get("destinationAccountInformation") or {}).get("accountNumber")
+        )
+
         txn_ref_raw = event_data.get("transactionReference")
         txn_ref = str(txn_ref_raw) if txn_ref_raw else ""
         account_ref_raw = event_data.get("destinationAccountReference") or event_data.get("paymentReference")
@@ -76,53 +82,57 @@ class MonnifyWebhookView(APIView):
 
         from wallet.models import Wallet, Transaction
 
-        # 3. Resolve user_id from transactionReference (format: MNFY|16|...)
-        user_id = None
+        # ──────────────────────────────────────────────
+        # STRATEGY 1: User ID from transactionReference (format: MNFY|16|...)
+        # ──────────────────────────────────────────────
+        wallet = None
+        user_id_from_ref = None
         parts = txn_ref.split("|")
         if len(parts) >= 2 and parts[1].isdigit():
-            user_id = int(parts[1])
-            print(f"DEBUG: Extracted user_id={user_id} from txn_ref")
+            user_id_from_ref = int(parts[1])
+            wallet = Wallet.objects.filter(user_id=user_id_from_ref).first()
+            if wallet:
+                print(f"DEBUG: STRATEGY 1 HIT — user_id={user_id_from_ref} account={wallet.account_number}")
+            else:
+                print(f"DEBUG: STRATEGY 1 MISS — no wallet for user_id={user_id_from_ref}")
 
-        # 4. Find the correct wallet — NO .first() fallback
-        wallet = None
+        # ──────────────────────────────────────────────
+        # STRATEGY 2: Account Number from payload
+        # ──────────────────────────────────────────────
+        if not wallet and account_number:
+            wallet = Wallet.objects.filter(account_number=account_number).first()
+            if wallet:
+                print(f"DEBUG: STRATEGY 2 HIT — account={account_number} user_id={wallet.user_id}")
+            else:
+                print(f"DEBUG: STRATEGY 2 MISS — no wallet for account={account_number}")
 
-        # Strategy A: user_id from txn_ref (most reliable)
-        if user_id is not None:
-            try:
-                wallet = Wallet.objects.get(user_id=user_id)
-                print(f"DEBUG: Found wallet by user_id={user_id}: account={wallet.account_number}")
-            except Wallet.DoesNotExist:
-                print(f"DEBUG: No wallet for user_id={user_id}")
-
-        # Strategy B: account_number from payload
-        if wallet is None and account_number:
-            try:
-                wallet = Wallet.objects.get(account_number=account_number)
-                print(f"DEBUG: Found wallet by account_number={account_number}: user={wallet.user_id}")
-            except Wallet.DoesNotExist:
-                print(f"DEBUG: No wallet for account_number={account_number}")
-
-        # Strategy C: digits from account_ref (legacy format like ABDTIC-16)
-        if wallet is None and account_ref and account_ref != "None":
+        # ──────────────────────────────────────────────
+        # STRATEGY 3: Digits from account_ref (legacy ABDTIC-16)
+        # ──────────────────────────────────────────────
+        if not wallet and account_ref:
             digit_match = re.findall(r"\d+", account_ref)
             if digit_match:
-                try:
-                    wallet = Wallet.objects.get(user_id=int(digit_match[0]))
-                    print(f"DEBUG: Found wallet by ref digits={digit_match[0]}: account={wallet.account_number}")
-                except Wallet.DoesNotExist:
-                    print(f"DEBUG: No wallet for ref user_id={digit_match[0]}")
+                wallet = Wallet.objects.filter(user_id=int(digit_match[0])).first()
+                if wallet:
+                    print(f"DEBUG: STRATEGY 3 HIT — ref_digits={digit_match[0]} account={wallet.account_number}")
+                else:
+                    print(f"DEBUG: STRATEGY 3 MISS — no wallet for ref_digits={digit_match[0]}")
 
-        if wallet is None:
-            print(f"DEBUG: CRITICAL — wallet not found for any strategy")
+        if not wallet:
+            print("DEBUG: CRITICAL — wallet not found via any strategy")
             return Response({"error": "Wallet not found"}, status=404)
 
-        # 5. Idempotency check
-        if txn_ref and txn_ref != "None":
+        # ──────────────────────────────────────────────
+        # IDEMPOTENCY CHECK
+        # ──────────────────────────────────────────────
+        if txn_ref:
             if Transaction.objects.filter(reference=txn_ref).exists():
                 print(f"DEBUG: Duplicate — {txn_ref} already processed")
                 return Response({"status": "ignored"}, status=200)
 
-        # 6. Atomic credit + fee deduction
+        # ──────────────────────────────────────────────
+        # ATOMIC CREDIT + FEE DEDUCTION
+        # ──────────────────────────────────────────────
         try:
             with transaction.atomic():
                 locked = Wallet.objects.select_for_update().get(pk=wallet.pk)
