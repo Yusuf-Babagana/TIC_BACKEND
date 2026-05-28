@@ -13,6 +13,7 @@ from rest_framework.views import APIView
 from rest_framework_simplejwt.authentication import JWTAuthentication
 
 from .constants import get_data_plan, get_cable_plan, DATA_PLANS
+from .models import CablePlan, DataPlan
 from .providers import TRANSACTION_TYPE_MAP
 from .serializers import UnifiedPurchaseSerializer
 from .services import CheapDataHubService, CheapDataHubError
@@ -39,8 +40,34 @@ class DataPlanListView(APIView):
         provider = request.query_params.get("provider", "").lower()
 
         if category == "DATA":
-            filtered_plans = [p for p in DATA_PLANS if p["provider"] == provider]
-            return Response(filtered_plans, status=200)
+            qs = DataPlan.objects.filter(is_active=True)
+            if provider:
+                qs = qs.filter(network=provider.upper())
+            plans = [
+                {
+                    "id": p.plan_id,
+                    "provider": p.network.lower(),
+                    "name": p.plan_name,
+                    "price": float(p.price),
+                }
+                for p in qs
+            ]
+            return Response(plans, status=200)
+
+        if category == "CABLE":
+            qs = CablePlan.objects.filter(is_active=True)
+            if provider:
+                qs = qs.filter(provider_name=provider.upper())
+            plans = [
+                {
+                    "id": p.plan_id,
+                    "provider": p.provider_name,
+                    "name": p.plan_name,
+                    "price": float(p.price),
+                }
+                for p in qs
+            ]
+            return Response(plans, status=200)
 
         return Response([], status=400)
 
@@ -285,15 +312,15 @@ class DataPurchaseView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        plan = get_data_plan(bundle_id)
+        plan = DataPlan.objects.filter(plan_id=bundle_id, is_active=True).first()
         if plan is None:
             return Response(
                 {"status": "false", "message": f"Unknown bundle_id: {bundle_id}"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        cost = plan["price"]
-        payload = {"bundle_id": int(bundle_id), "phone_number": phone_number}
+        cost = plan.price
+        payload = {"bundle_id": plan.bundle_id, "phone_number": phone_number}
         return _execute_purchase(request.user, "DATA", cost, payload)
 
 
@@ -340,13 +367,13 @@ class CablePurchaseView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        plan = get_cable_plan(plan_id)
+        plan = CablePlan.objects.filter(plan_id=plan_id, is_active=True).first()
         if plan is None:
             return Response(
                 {"status": "false", "message": f"Unknown plan_id: {plan_id}"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        cost = plan["price"]
-        payload = {"plan_id": int(plan_id), "card_number": card_number, "phone": phone}
+        cost = plan.price
+        payload = {"plan_id": plan.plan_id, "card_number": card_number, "phone": phone}
         return _execute_purchase(request.user, "CABLE", cost, payload)
