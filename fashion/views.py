@@ -1,6 +1,12 @@
+from decimal import Decimal
+
+from django.db import transaction
 from rest_framework import viewsets, permissions, generics, status
 from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.response import Response
+from rest_framework.views import APIView
+from rest_framework_simplejwt.authentication import JWTAuthentication
+
 from .models import Category, Product, UserMeasurement, CustomStyleRequest
 from .serializers import CategorySerializer, ProductSerializer, UserMeasurementSerializer, CustomStyleRequestSerializer, CustomStyleRequestUpdateSerializer
 class CategoryViewSet(viewsets.ReadOnlyModelViewSet):
@@ -51,3 +57,100 @@ class CustomStyleRequestAdminView(generics.RetrieveUpdateAPIView):
     queryset = CustomStyleRequest.objects.all().order_by("-id")
     serializer_class = CustomStyleRequestUpdateSerializer
     permission_classes = [permissions.IsAdminUser]
+
+
+class CustomTailoringView(APIView):
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [permissions.IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser]
+
+    def post(self, request):
+        user = request.user
+        description = request.data.get("description")
+        reference_image = request.FILES.get("reference_image")
+
+        if not description:
+            return Response(
+                {"error": "description is required"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        style_request = CustomStyleRequest.objects.create(
+            user=user,
+            description=description,
+            reference_image=reference_image,
+        )
+
+        serializer = CustomStyleRequestSerializer(style_request)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+
+class PayForTailoringView(APIView):
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        from wallet.models import Wallet, Transaction
+
+        user = request.user
+        order_id = request.data.get("order_id")
+
+        try:
+            order = CustomStyleRequest.objects.get(id=order_id, user=user)
+        except CustomStyleRequest.DoesNotExist:
+            return Response(
+                {"error": "Order not found"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        if order.status != "quoted":
+            return Response(
+                {"error": f"Order status is '{order.status}', not 'quoted'"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if order.price_quote is None or order.price_quote <= 0:
+            return Response(
+                {"error": "No valid price quote on this order"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            with transaction.atomic():
+                wallet = Wallet.objects.select_for_update().get(user=user)
+
+                if wallet.balance < order.price_quote:
+                    return Response(
+                        {"error": "Insufficient balance"},
+                        status=status.HTTP_402_PAYMENT_REQUIRED,
+                    )
+
+                wallet.balance -= order.price_quote
+                wallet.save(update_fields=["balance"])
+
+                order.status = "paid"
+                order.save(update_fields=["status"])
+
+                Transaction.objects.create(
+                    user=user,
+                    trans_type="UTILITY",
+                    amount=order.price_quote,
+                    status="SUCCESSFUL",
+                    reference=f"TAILOR-{order.id}-{order.created_at.strftime('%Y%m%d%H%M%S')}",
+                )
+
+            return Response(
+                {"message": "Payment successful", "order_id": order.id},
+                status=status.HTTP_200_OK,
+            )
+
+        except Wallet.DoesNotExist:
+            return Response(
+                {"error": "Wallet not found"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        except Exception as e:
+            return Response(
+                {"error": str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
