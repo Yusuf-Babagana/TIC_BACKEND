@@ -1,4 +1,5 @@
 {% extends "dashboard/base.html" %}
+{% load dashboard_extras %}
 
 {% block title %}Tailoring Orders - TIC Admin{% endblock %}
 {% block heading %}Tailoring Orders{% endblock %}
@@ -71,7 +72,7 @@
     </thead>
     <tbody>
         {% for req in requests %}
-        {% with meas=req._measurement %}
+        {% with meas=measurements_map|get_item:req.user_id %}
         <tr>
             <td>{{ req.user.username }}</td>
             <td>{{ req.description|truncatechars:40 }}
@@ -181,7 +182,7 @@
 <script>
 const measurementsData = {
     {% for req in requests %}
-    {% with m=req._measurement %}
+    {% with m=measurements_map|get_item:req.user_id %}
         {% if m %}
         {{ req.user_id }}: { neck: "{{ m.neck|default:'—' }}", chest: "{{ m.chest|default:'—' }}", waist: "{{ m.waist|default:'—' }}", shoulder: "{{ m.shoulder|default:'—' }}", length: "{{ m.length|default:'—' }}" },
         {% endif %}
