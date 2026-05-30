@@ -3,6 +3,10 @@ from django.urls import path
 from .views import (
     AdminDashboardView,
     DashboardFinanceView,
+    DashboardFlyerDeleteView,
+    DashboardFlyerToggleView,
+    DashboardFlyerUpdateView,
+    DashboardFlyerUploadView,
     DashboardFlyerView,
     DashboardLoginView,
     DashboardLogoutView,
@@ -45,6 +49,10 @@ urlpatterns = [
     path("finance/", DashboardFinanceView.as_view(), name="dashboard_finance"),
     path("finance/adjust/", DashboardWalletAdjustView.as_view(), name="dashboard_wallet_adjust"),
     path("flyers/", DashboardFlyerView.as_view(), name="dashboard_flyers"),
+    path("flyers/upload/", DashboardFlyerUploadView.as_view(), name="dashboard_flyer_upload"),
+    path("flyers/<int:pk>/update/", DashboardFlyerUpdateView.as_view(), name="dashboard_flyer_update"),
+    path("flyers/<int:pk>/delete/", DashboardFlyerDeleteView.as_view(), name="dashboard_flyer_delete"),
+    path("flyers/<int:pk>/toggle/", DashboardFlyerToggleView.as_view(), name="dashboard_flyer_toggle"),
     path("users/", DashboardUserListView.as_view(), name="dashboard_users"),
     path("users/<int:pk>/", DashboardUserDetailView.as_view(), name="dashboard_user_detail"),
     path(

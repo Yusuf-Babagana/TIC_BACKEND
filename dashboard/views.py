@@ -456,3 +456,63 @@ class DashboardFlyerView(LoginRequiredMixin, TemplateView):
         context = super().get_context_data(**kwargs)
         context["flyers"] = FlyerModel.objects.all().order_by("position")
         return context
+
+
+class DashboardFlyerUploadView(LoginRequiredMixin, View):
+    login_url = "/dashboard/login/"
+
+    def post(self, request):
+        title = request.POST.get("title", "").strip()
+        position = request.POST.get("position")
+        link_url = request.POST.get("link_url", "")
+        image = request.FILES.get("image")
+
+        if not title:
+            return JsonResponse({"error": "Title is required"}, status=400)
+        if not position:
+            return JsonResponse({"error": "Position is required"}, status=400)
+        if not image:
+            return JsonResponse({"error": "Image file is required"}, status=400)
+
+        FlyerModel.objects.update_or_create(
+            position=position,
+            defaults={"title": title, "link_url": link_url, "image": image, "is_active": True},
+        )
+        return JsonResponse({"message": "Flyer uploaded"})
+
+
+class DashboardFlyerUpdateView(LoginRequiredMixin, View):
+    login_url = "/dashboard/login/"
+
+    def post(self, request, pk):
+        flyer = get_object_or_404(FlyerModel, pk=pk)
+        title = request.POST.get("title", "").strip()
+        link_url = request.POST.get("link_url", "")
+        image = request.FILES.get("image")
+
+        if title:
+            flyer.title = title
+        flyer.link_url = link_url
+        if image:
+            flyer.image = image
+        flyer.save(update_fields=["title", "link_url", "image"] if image else ["title", "link_url"])
+        return JsonResponse({"message": "Flyer updated"})
+
+
+class DashboardFlyerDeleteView(LoginRequiredMixin, View):
+    login_url = "/dashboard/login/"
+
+    def post(self, request, pk):
+        flyer = get_object_or_404(FlyerModel, pk=pk)
+        flyer.delete()
+        return JsonResponse({"message": "Flyer deleted"})
+
+
+class DashboardFlyerToggleView(LoginRequiredMixin, View):
+    login_url = "/dashboard/login/"
+
+    def post(self, request, pk):
+        flyer = get_object_or_404(FlyerModel, pk=pk)
+        flyer.is_active = not flyer.is_active
+        flyer.save(update_fields=["is_active"])
+        return JsonResponse({"is_active": flyer.is_active, "message": "Flyer updated"})
