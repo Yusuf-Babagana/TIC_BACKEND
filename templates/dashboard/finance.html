@@ -1,0 +1,242 @@
+{% extends "dashboard/base.html" %}
+
+{% block title %}Finance Center - TIC Admin{% endblock %}
+{% block heading %}Finance Center{% endblock %}
+
+{% block content %}
+<style>
+    .btn { display: inline-block; padding: 0.35rem 0.7rem; border-radius: 6px; border: none; font-size: 0.8rem; cursor: pointer; text-decoration: none; }
+    .btn-success { background: #00b894; color: #fff; }
+    .btn-success:hover { background: #00a381; }
+    .btn-danger { background: #d63031; color: #fff; }
+    .btn-danger:hover { background: #b71c1c; }
+    .btn-primary { background: #0984e3; color: #fff; }
+    .btn-primary:hover { background: #0767b3; }
+    .btn-sm { padding: 0.25rem 0.5rem; font-size: 0.75rem; }
+
+    .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; margin-bottom: 1.5rem; }
+    .card { background: #fff; border-radius: 8px; padding: 1.25rem; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+    .card .value { font-size: 1.6rem; font-weight: 700; color: #0984e3; }
+    .card .label { color: #636e72; font-size: 0.8rem; margin-top: 0.2rem; }
+    .card .value.green { color: #00b894; }
+    .card .value.orange { color: #e17055; }
+    .card .value.purple { color: #6c5ce7; }
+
+    .search-section { background: #fff; border-radius: 8px; padding: 1rem 1.5rem; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 1rem; }
+    .search-row { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
+    .search-row input, .search-row select { padding: 0.4rem 0.6rem; border: 1px solid #dfe6e9; border-radius: 4px; font-size: 0.85rem; }
+    .search-row input[type="text"], .search-row input[type="date"] { width: 140px; }
+    .search-row input[type="text"].wide { width: 200px; }
+
+    .action-bar { margin-bottom: 1rem; display: flex; gap: 0.5rem; }
+    .action-bar .fab { width: 40px; height: 40px; border-radius: 50%; background: #0984e3; color: #fff; border: none; font-size: 1.4rem; cursor: pointer; box-shadow: 0 2px 8px rgba(9,132,227,0.3); display: flex; align-items: center; justify-content: center; }
+    .action-bar .fab:hover { background: #0767b3; }
+
+    .modal-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.6); z-index: 1000; justify-content: center; align-items: center; }
+    .modal-overlay.active { display: flex; }
+    .modal-box { background: #fff; border-radius: 12px; padding: 2rem; max-width: 420px; width: 90%; position: relative; }
+    .modal-box h3 { margin-bottom: 1rem; }
+    .modal-close { position: absolute; top: 1rem; right: 1rem; background: none; border: none; font-size: 1.5rem; cursor: pointer; color: #636e72; }
+    .form-group { margin-bottom: 0.8rem; }
+    .form-group label { display: block; font-size: 0.85rem; color: #636e72; margin-bottom: 0.3rem; }
+    .form-group input, .form-group select { width: 100%; padding: 0.5rem; border: 1px solid #dfe6e9; border-radius: 4px; font-size: 0.9rem; }
+
+    .badge { display: inline-block; padding: 0.2rem 0.5rem; border-radius: 10px; font-size: 0.75rem; }
+    .badge.SUCCESSFUL { background: #55efc4; color: #00b894; }
+    .badge.FAILED { background: #fab1a0; color: #d63031; }
+    .badge.PENDING { background: #ffeaa7; color: #6c5ce7; }
+
+    .toast { visibility: hidden; min-width: 250px; background: #00b894; color: #fff; text-align: center; border-radius: 8px; padding: 1rem; position: fixed; bottom: 2rem; left: 50%; transform: translateX(-50%); z-index: 3000; opacity: 0; transition: opacity 0.3s, visibility 0.3s; }
+    .toast.show { visibility: visible; opacity: 1; }
+    .toast.error { background: #d63031; }
+</style>
+
+{% csrf_token %}
+
+<div class="cards">
+    <div class="card">
+        <div class="value green">₦{{ total_revenue|floatformat:0 }}</div>
+        <div class="label">Total Revenue</div>
+    </div>
+    <div class="card">
+        <div class="value">₦{{ today_revenue|floatformat:0 }}</div>
+        <div class="label">Today's Revenue</div>
+    </div>
+    <div class="card">
+        <div class="value purple">₦{{ total_deposits|floatformat:0 }}</div>
+        <div class="label">Total Deposits</div>
+    </div>
+    <div class="card">
+        <div class="value orange">₦{{ total_purchases|floatformat:0 }}</div>
+        <div class="label">Total Purchases</div>
+    </div>
+    <div class="card">
+        <div class="value">{{ total_transactions }}</div>
+        <div class="label">All Transactions</div>
+    </div>
+    <div class="card">
+        <div class="value">{{ total_wallets }}</div>
+        <div class="label">Active Wallets</div>
+    </div>
+</div>
+
+<div class="action-bar">
+    <button class="fab" onclick="openModal('creditModal')" title="Credit a user">+</button>
+    <span style="font-size:0.85rem;color:#636e72;align-self:center;">Credit / Debit Wallet</span>
+</div>
+
+<div class="search-section">
+    <form method="get" style="display:flex;flex-direction:column;gap:0.5rem;">
+        <div class="search-row">
+            <input type="text" name="q" placeholder="Search ref, user, email..." value="{{ q }}" class="wide">
+            <input type="text" name="user" placeholder="Username/Email/Phone..." value="{{ user_search }}">
+            <select name="status">
+                <option value="">All Status</option>
+                <option value="SUCCESSFUL" {% if active_status == 'SUCCESSFUL' %}selected{% endif %}>Successful</option>
+                <option value="FAILED" {% if active_status == 'FAILED' %}selected{% endif %}>Failed</option>
+                <option value="PENDING" {% if active_status == 'PENDING' %}selected{% endif %}>Pending</option>
+            </select>
+            <select name="type">
+                <option value="">All Types</option>
+                <option value="DATA" {% if active_type == 'DATA' %}selected{% endif %}>Data</option>
+                <option value="AIRTIME" {% if active_type == 'AIRTIME' %}selected{% endif %}>Airtime</option>
+                <option value="UTILITY" {% if active_type == 'UTILITY' %}selected{% endif %}>Utility</option>
+                <option value="DEPOSIT" {% if active_type == 'DEPOSIT' %}selected{% endif %}>Deposit</option>
+            </select>
+            <input type="date" name="from" value="{{ date_from }}">
+            <input type="date" name="to" value="{{ date_to }}">
+            <button type="submit" class="btn btn-primary btn-sm">Search</button>
+            <a href="{% url 'dashboard_finance' %}" class="btn btn-sm btn-danger" style="text-decoration:none;">Clear</a>
+        </div>
+    </form>
+</div>
+
+<table>
+    <thead>
+        <tr>
+            <th>Ref</th>
+            <th>User</th>
+            <th>Type</th>
+            <th>Amount (₦)</th>
+            <th>Fee (₦)</th>
+            <th>Net</th>
+            <th>Status</th>
+            <th>Date</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for txn in transactions %}
+        <tr>
+            <td style="font-size:0.75rem;font-family:monospace;">{{ txn.reference|truncatechars:24 }}</td>
+            <td>{{ txn.user.username }}</td>
+            <td>{{ txn.get_trans_type_display }}</td>
+            <td>{{ txn.amount|floatformat:2 }}</td>
+            <td>{% if txn.fee %}{{ txn.fee|floatformat:2 }}{% else %}—{% endif %}</td>
+            <td>{% if txn.net_amount %}{{ txn.net_amount|floatformat:2 }}{% else %}—{% endif %}</td>
+            <td><span class="badge {{ txn.status }}">{{ txn.status }}</span></td>
+            <td>{{ txn.created_at|date:"M d, H:i" }}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="8" class="empty">No transactions match your filters.</td></tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<!-- Credit Modal -->
+<div class="modal-overlay" id="creditModal">
+    <div class="modal-box">
+        <button class="modal-close" onclick="closeModal('creditModal')">&times;</button>
+        <h3>Credit / Debit Wallet</h3>
+        <form id="adjustForm">
+            <div class="form-group">
+                <label>User ID or Username</label>
+                <input type="text" id="adjustUser" placeholder="User ID number or username" required>
+            </div>
+            <div class="form-group">
+                <label>Action</label>
+                <select id="adjustAction">
+                    <option value="credit">Credit (+)</option>
+                    <option value="debit">Debit (−)</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Amount (₦)</label>
+                <input type="number" id="adjustAmount" step="0.01" min="0.01" placeholder="0.00" required>
+            </div>
+            <button type="submit" class="btn btn-success" style="width:100%;padding:0.6rem;">Execute</button>
+        </form>
+        <div id="adjustResult" style="margin-top:0.8rem;font-size:0.85rem;display:none;"></div>
+    </div>
+</div>
+
+<div id="toast" class="toast"></div>
+
+<script>
+function showToast(msg, isError) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.className = 'toast' + (isError ? ' error' : '') + ' show';
+    setTimeout(() => t.className = 'toast', 3000);
+}
+
+function openModal(id) { document.getElementById(id).classList.add('active'); }
+function closeModal(id) { document.getElementById(id).classList.remove('active'); }
+
+function getCSRF() { return document.querySelector('[name=csrfmiddlewaretoken]')?.value || ''; }
+
+document.getElementById('adjustForm')?.addEventListener('submit', function(e) {
+    e.preventDefault();
+    const userInput = document.getElementById('adjustUser').value.trim();
+    const action = document.getElementById('adjustAction').value;
+    const amount = document.getElementById('adjustAmount').value;
+
+    // Resolve user_id: if it's a number, use directly; otherwise try username
+    const user_id = /^\d+$/.test(userInput) ? userInput : null;
+    const username = userInput;
+
+    if (!user_id && !username) { showToast('Enter a user ID or username', true); return; }
+    if (!amount || parseFloat(amount) <= 0) { showToast('Enter a valid amount', true); return; }
+
+    const form = new FormData();
+    form.append('csrfmiddlewaretoken', getCSRF());
+    if (user_id) {
+        form.append('user_id', user_id);
+    } else {
+        form.append('user_id', username); // will be looked up
+    }
+    form.append('action', action);
+    form.append('amount', amount);
+
+    // We need to resolve username to ID first - do a lookup
+    const fetchUser = user_id
+        ? Promise.resolve(user_id)
+        : fetch('/dashboard/finance/?q=' + encodeURIComponent(username))
+            .then(() => {
+                // Can't resolve client-side, so just send username
+                return null;
+            });
+
+    fetch('/dashboard/finance/adjust/', {
+        method: 'POST',
+        body: form,
+        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    })
+    .then(r => r.json())
+    .then(d => {
+        if (d.error) { showToast(d.error, true); return; }
+        document.getElementById('adjustResult').style.display = 'block';
+        document.getElementById('adjustResult').innerHTML = '✅ ' + d.message + '<br>New balance: ₦' + d.new_balance + ' for ' + d.user;
+        showToast(d.message);
+        setTimeout(() => { closeModal('creditModal'); location.reload(); }, 1500);
+    })
+    .catch(() => showToast('Request failed', true));
+});
+
+// Close modal on overlay click
+document.querySelectorAll('.modal-overlay').forEach(el => {
+    el.addEventListener('click', function(e) {
+        if (e.target === this) this.classList.remove('active');
+    });
+});
+</script>
+{% endblock %}

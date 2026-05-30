@@ -28,7 +28,7 @@
         <tr>
             <td>{{ txn.reference|truncatechars:20 }}</td>
             <td>{{ txn.user.username }}</td>
-            <td>{{ txn.transaction_type }}</td>
+            <td>{{ txn.get_trans_type_display }}</td>
             <td>{{ txn.amount|floatformat:2 }}</td>
             <td><span class="badge {{ txn.status }}">{{ txn.status }}</span></td>
             <td>{{ txn.created_at|date:"M d, H:i" }}</td>

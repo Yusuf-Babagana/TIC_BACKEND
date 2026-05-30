@@ -223,3 +223,160 @@ class DashboardPlanSyncView(LoginRequiredMixin, View):
             return JsonResponse({"message": "Sync completed", "output": output})
         except Exception as e:
             return JsonResponse({"error": str(e)}, status=500)
+
+
+from datetime import date, datetime
+
+from django.contrib.auth import get_user_model
+from django.db.models import Q, Sum
+from django.utils import timezone
+
+
+class DashboardFinanceView(LoginRequiredMixin, TemplateView):
+    template_name = "dashboard/finance.html"
+    login_url = "/dashboard/login/"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+
+        today = timezone.now().date()
+        today_start = timezone.make_aware(datetime.combine(today, datetime.min.time()))
+        today_end = timezone.make_aware(datetime.combine(today, datetime.max.time()))
+
+        successful = Transaction.objects.filter(status="SUCCESSFUL")
+
+        context["total_revenue"] = successful.aggregate(t=Sum("amount"))["t"] or 0
+        context["today_revenue"] = successful.filter(
+            created_at__range=(today_start, today_end)
+        ).aggregate(t=Sum("amount"))["t"] or 0
+        context["total_deposits"] = successful.filter(trans_type="DEPOSIT").aggregate(
+            t=Sum("amount")
+        )["t"] or 0
+        context["total_purchases"] = (
+            successful.exclude(trans_type="DEPOSIT").aggregate(t=Sum("amount"))["t"] or 0
+        )
+        context["total_transactions"] = Transaction.objects.count()
+        context["total_wallets"] = Wallet.objects.count()
+
+        q = self.request.GET.get("q", "").strip()
+        txn_status = self.request.GET.get("status", "")
+        txn_type = self.request.GET.get("type", "")
+        date_from = self.request.GET.get("from", "")
+        date_to = self.request.GET.get("to", "")
+        user_search = self.request.GET.get("user", "").strip()
+
+        qs = Transaction.objects.select_related("user").order_by("-created_at")
+
+        if q:
+            qs = qs.filter(
+                Q(reference__icontains=q)
+                | Q(user__username__icontains=q)
+                | Q(user__email__icontains=q)
+            )
+        if txn_status:
+            qs = qs.filter(status=txn_status.upper())
+        if txn_type:
+            qs = qs.filter(trans_type=txn_type.upper())
+        if date_from:
+            try:
+                qs = qs.filter(
+                    created_at__gte=timezone.make_aware(
+                        datetime.strptime(date_from, "%Y-%m-%d")
+                    )
+                )
+            except ValueError:
+                pass
+        if date_to:
+            try:
+                qs = qs.filter(
+                    created_at__lte=timezone.make_aware(
+                        datetime.strptime(date_to, "%Y-%m-%d")
+                    )
+                )
+            except ValueError:
+                pass
+        if user_search:
+            qs = qs.filter(
+                Q(user__username__icontains=user_search)
+                | Q(user__email__icontains=user_search)
+                | Q(user__phone_number__icontains=user_search)
+            )
+
+        context["transactions"] = qs[:100]
+        context["q"] = q
+        context["active_status"] = txn_status
+        context["active_type"] = txn_type
+        context["date_from"] = date_from
+        context["date_to"] = date_to
+        context["user_search"] = user_search
+        return context
+
+
+class DashboardWalletAdjustView(LoginRequiredMixin, View):
+    login_url = "/dashboard/login/"
+
+    def post(self, request):
+        from decimal import Decimal, InvalidOperation
+
+        user_id = request.POST.get("user_id")
+        action = request.POST.get("action")
+        amount_str = request.POST.get("amount")
+
+        if not all([user_id, action, amount_str]):
+            return JsonResponse({"error": "user_id, action, and amount required"}, status=400)
+
+        if action not in ("credit", "debit"):
+            return JsonResponse({"error": "action must be 'credit' or 'debit'"}, status=400)
+
+        try:
+            amount = Decimal(str(amount_str))
+            if amount <= 0:
+                return JsonResponse({"error": "amount must be positive"}, status=400)
+        except InvalidOperation:
+            return JsonResponse({"error": "invalid amount"}, status=400)
+
+        User = get_user_model()
+        try:
+            user = User.objects.get(id=user_id)
+        except User.DoesNotExist:
+            return JsonResponse({"error": "User not found"}, status=404)
+
+        try:
+            from django.db import transaction as db_transaction
+
+            with db_transaction.atomic():
+                wallet = Wallet.objects.select_for_update().get(user=user)
+
+                if action == "debit" and wallet.balance < amount:
+                    return JsonResponse(
+                        {"error": f"Insufficient balance (₦{wallet.balance})"}, status=400
+                    )
+
+                if action == "credit":
+                    wallet.balance += amount
+                    ref_prefix = "ADMIN-CREDIT"
+                else:
+                    wallet.balance -= amount
+                    ref_prefix = "ADMIN-DEBIT"
+
+                wallet.save(update_fields=["balance"])
+
+                txn_ref = f"{ref_prefix}-{user.id}-{timezone.now().strftime('%Y%m%d%H%M%S')}"
+                Transaction.objects.create(
+                    user=user,
+                    trans_type="DEPOSIT" if action == "credit" else "UTILITY",
+                    amount=amount,
+                    reference=txn_ref,
+                    status="SUCCESSFUL",
+                )
+
+            return JsonResponse({
+                "message": f"Wallet {action}ed ₦{amount}",
+                "new_balance": str(wallet.balance),
+                "user": user.username,
+            })
+
+        except Wallet.DoesNotExist:
+            return JsonResponse({"error": "No wallet for this user"}, status=404)
+        except Exception as e:
+            return JsonResponse({"error": str(e)}, status=500)

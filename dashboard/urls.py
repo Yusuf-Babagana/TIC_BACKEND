@@ -2,6 +2,7 @@ from django.urls import path
 
 from .views import (
     AdminDashboardView,
+    DashboardFinanceView,
     DashboardLoginView,
     DashboardLogoutView,
     DashboardPlanListView,
@@ -11,6 +12,7 @@ from .views import (
     DashboardTailoringListView,
     DashboardTailoringUpdateView,
     DashboardTransactionListView,
+    DashboardWalletAdjustView,
 )
 
 urlpatterns = [
@@ -36,4 +38,6 @@ urlpatterns = [
         DashboardTailoringUpdateView.as_view(),
         name="dashboard_tailoring_update",
     ),
+    path("finance/", DashboardFinanceView.as_view(), name="dashboard_finance"),
+    path("finance/adjust/", DashboardWalletAdjustView.as_view(), name="dashboard_wallet_adjust"),
 ]

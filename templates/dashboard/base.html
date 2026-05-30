@@ -47,6 +47,7 @@
         <a href="{% url 'admin_dashboard' %}" {% if request.resolver_match.view_name == 'admin_dashboard' %}class="active"{% endif %}>Dashboard</a>
         <a href="{% url 'dashboard_plans' %}" {% if request.resolver_match.view_name == 'dashboard_plans' %}class="active"{% endif %}>Manage Plans</a>
         <a href="{% url 'dashboard_transactions' %}" {% if request.resolver_match.view_name == 'dashboard_transactions' %}class="active"{% endif %}>Transactions</a>
+        <a href="{% url 'dashboard_finance' %}" {% if request.resolver_match.view_name == 'dashboard_finance' %}class="active"{% endif %}>Finance</a>
         <a href="{% url 'dashboard_tailoring' %}" {% if request.resolver_match.view_name == 'dashboard_tailoring' %}class="active"{% endif %}>Tailoring</a>
         <a href="{% url 'dashboard_logout' %}">Logout</a>
     </nav>
