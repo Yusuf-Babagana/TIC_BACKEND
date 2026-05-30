@@ -1,11 +1,12 @@
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.mixins import LoginRequiredMixin
-from django.db.models import Sum
-from django.shortcuts import redirect, render
+from django.db.models import Prefetch, Sum
+from django.http import JsonResponse
+from django.shortcuts import get_object_or_404, redirect, render
 from django.views.generic import ListView, TemplateView
 from django.views import View
 
-from fashion.models import CustomStyleRequest
+from fashion.models import CustomStyleRequest, Notification, UserMeasurement
 from vtu.models import DataPlan, Provider
 from wallet.models import Transaction, Wallet
 
@@ -124,4 +125,52 @@ class DashboardTailoringListView(LoginRequiredMixin, ListView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context["active_status"] = self.request.GET.get("status", "")
+
+        orders = context[self.context_object_name]
+        user_ids = [o.user_id for o in orders]
+        measurements_map = {
+            m.user_id: m
+            for m in UserMeasurement.objects.filter(user_id__in=user_ids)
+        }
+        for o in orders:
+            o._measurement = measurements_map.get(o.user_id)
         return context
+
+
+class DashboardTailoringUpdateView(LoginRequiredMixin, View):
+    login_url = "/dashboard/login/"
+
+    def post(self, request, pk):
+        order = get_object_or_404(CustomStyleRequest, pk=pk)
+        new_status = request.POST.get("status")
+        price_quote = request.POST.get("price_quote")
+
+        STATUS_FLOW = {
+            "pending": ["cutting"],
+            "cutting": ["sewing"],
+            "sewing": ["completed"],
+            "paid": ["cutting"],
+        }
+
+        allowed = STATUS_FLOW.get(order.status, [])
+        if new_status not in allowed:
+            return JsonResponse(
+                {"error": f"Cannot change from '{order.status}' to '{new_status}'"},
+                status=400,
+            )
+
+        old_status = order.status
+        order.status = new_status
+
+        if new_status == "cutting" and price_quote:
+            order.price_quote = price_quote
+
+        order.save(update_fields=["status", "price_quote"] if new_status == "cutting" and price_quote else ["status"])
+
+        Notification.objects.create(
+            user=order.user,
+            order=order,
+            message=f"Your tailoring order #{order.id} has been updated from '{old_status}' to '{new_status}'.",
+        )
+
+        return JsonResponse({"status": new_status, "message": "Order updated"})

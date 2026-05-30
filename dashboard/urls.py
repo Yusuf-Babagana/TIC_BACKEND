@@ -6,6 +6,7 @@ from .views import (
     DashboardLogoutView,
     DashboardPlanListView,
     DashboardTailoringListView,
+    DashboardTailoringUpdateView,
     DashboardTransactionListView,
 )
 
@@ -23,5 +24,10 @@ urlpatterns = [
         "tailoring/",
         DashboardTailoringListView.as_view(),
         name="dashboard_tailoring",
+    ),
+    path(
+        "tailoring/<int:pk>/update/",
+        DashboardTailoringUpdateView.as_view(),
+        name="dashboard_tailoring_update",
     ),
 ]

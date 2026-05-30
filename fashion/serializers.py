@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Category, Product, UserMeasurement, CustomStyleRequest
+from .models import Category, Notification, Product, UserMeasurement, CustomStyleRequest
 
 class ProductSerializer(serializers.ModelSerializer):
     class Meta:
@@ -32,3 +32,13 @@ class CustomStyleRequestUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = CustomStyleRequest
         fields = ['status', 'price_quote']
+
+class NotificationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Notification
+        fields = ['id', 'order', 'message', 'is_read', 'created_at']
+
+class NotificationMarkReadSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Notification
+        fields = ['is_read']

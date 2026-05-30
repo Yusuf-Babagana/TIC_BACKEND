@@ -7,8 +7,18 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.authentication import JWTAuthentication
 
-from .models import Category, Product, UserMeasurement, CustomStyleRequest
-from .serializers import CategorySerializer, ProductSerializer, UserMeasurementSerializer, CustomStyleRequestSerializer, CustomStyleRequestUpdateSerializer
+from .models import Category, Notification, Product, UserMeasurement, CustomStyleRequest
+from .serializers import (
+    CategorySerializer,
+    CustomStyleRequestSerializer,
+    CustomStyleRequestUpdateSerializer,
+    NotificationMarkReadSerializer,
+    NotificationSerializer,
+    ProductSerializer,
+    UserMeasurementSerializer,
+)
+
+
 class CategoryViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Category.objects.all().order_by("id")
     serializer_class = CategorySerializer
@@ -154,3 +164,22 @@ class PayForTailoringView(APIView):
                 {"error": str(e)},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
+
+
+class NotificationListView(generics.ListAPIView):
+    serializer_class = NotificationSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        return Notification.objects.filter(user=self.request.user)
+
+
+class NotificationMarkReadView(generics.UpdateAPIView):
+    serializer_class = NotificationMarkReadSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        return Notification.objects.filter(user=self.request.user)
+
+    def perform_update(self, serializer):
+        serializer.save(is_read=True)

@@ -4,12 +4,57 @@
 {% block heading %}Tailoring Orders{% endblock %}
 
 {% block content %}
+<style>
+    .btn { display: inline-block; padding: 0.35rem 0.7rem; border-radius: 6px; border: none; font-size: 0.8rem; cursor: pointer; text-decoration: none; margin: 0.15rem; }
+    .btn-sm { padding: 0.25rem 0.5rem; font-size: 0.75rem; }
+    .btn-primary { background: #0984e3; color: #fff; }
+    .btn-primary:hover { background: #0767b3; }
+    .btn-success { background: #00b894; color: #fff; }
+    .btn-success:hover { background: #00a381; }
+    .btn-warning { background: #fdcb6e; color: #2d3436; }
+    .btn-warning:hover { background: #f0b93d; }
+    .btn-info { background: #74b9ff; color: #fff; }
+    .btn-info:hover { background: #5aa9f0; }
+    .btn-danger { background: #d63031; color: #fff; }
+    .btn-danger:hover { background: #b71c1c; }
+    .btn-outline { background: transparent; border: 1px solid #0984e3; color: #0984e3; }
+    .btn-outline:hover { background: #0984e3; color: #fff; }
+
+    .img-thumb { width: 50px; height: 50px; object-fit: cover; border-radius: 4px; cursor: pointer; border: 1px solid #dfe6e9; }
+
+    /* Modal overlay */
+    .modal-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.6); z-index: 1000; justify-content: center; align-items: center; }
+    .modal-overlay.active { display: flex; }
+    .modal-box { background: #fff; border-radius: 12px; padding: 2rem; max-width: 500px; width: 90%; max-height: 80vh; overflow-y: auto; position: relative; }
+    .modal-box h3 { margin-bottom: 1rem; }
+    .modal-close { position: absolute; top: 1rem; right: 1rem; background: none; border: none; font-size: 1.5rem; cursor: pointer; color: #636e72; }
+
+    /* Lightbox */
+    .lightbox { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.9); z-index: 2000; justify-content: center; align-items: center; }
+    .lightbox.active { display: flex; }
+    .lightbox img { max-width: 90%; max-height: 90%; border-radius: 8px; }
+    .lightbox-close { position: fixed; top: 1rem; right: 1.5rem; color: #fff; font-size: 2rem; cursor: pointer; background: none; border: none; z-index: 2001; }
+
+    .measurement-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
+    .measurement-item { background: #f8f9fa; padding: 0.75rem; border-radius: 8px; text-align: center; }
+    .measurement-item .label { font-size: 0.75rem; color: #636e72; text-transform: uppercase; }
+    .measurement-item .value { font-size: 1.2rem; font-weight: 700; color: #2d3436; }
+
+    .price-input { width: 90px; padding: 0.3rem 0.5rem; border: 1px solid #dfe6e9; border-radius: 4px; font-size: 0.85rem; }
+
+    .toast { visibility: hidden; min-width: 250px; background: #00b894; color: #fff; text-align: center; border-radius: 8px; padding: 1rem; position: fixed; bottom: 2rem; left: 50%; transform: translateX(-50%); z-index: 3000; opacity: 0; transition: opacity 0.3s, visibility 0.3s; }
+    .toast.show { visibility: visible; opacity: 1; }
+    .toast.error { background: #d63031; }
+</style>
+
 <div class="filter-bar">
     <a href="{% url 'dashboard_tailoring' %}" {% if not active_status %}class="active"{% endif %}>All</a>
     <a href="{% url 'dashboard_tailoring' %}?status=pending" {% if active_status == 'pending' %}class="active"{% endif %}>Pending</a>
+    <a href="{% url 'dashboard_tailoring' %}?status=quoted" {% if active_status == 'quoted' %}class="active"{% endif %}>Quoted</a>
     <a href="{% url 'dashboard_tailoring' %}?status=paid" {% if active_status == 'paid' %}class="active"{% endif %}>Paid</a>
+    <a href="{% url 'dashboard_tailoring' %}?status=cutting" {% if active_status == 'cutting' %}class="active"{% endif %}>Cutting</a>
+    <a href="{% url 'dashboard_tailoring' %}?status=sewing" {% if active_status == 'sewing' %}class="active"{% endif %}>Sewing</a>
     <a href="{% url 'dashboard_tailoring' %}?status=completed" {% if active_status == 'completed' %}class="active"{% endif %}>Completed</a>
-    <a href="{% url 'dashboard_tailoring' %}?status=failed" {% if active_status == 'failed' %}class="active"{% endif %}>Failed</a>
 </div>
 
 <table>
@@ -17,22 +62,54 @@
         <tr>
             <th>User</th>
             <th>Description</th>
+            <th>Image</th>
             <th>Status</th>
             <th>Amount (₦)</th>
+            <th>Actions</th>
             <th>Date</th>
         </tr>
     </thead>
     <tbody>
         {% for req in requests %}
+        {% with meas=req._measurement %}
         <tr>
             <td>{{ req.user.username }}</td>
-            <td>{{ req.description|truncatechars:50 }}</td>
-            <td><span class="badge {{ req.status }}">{{ req.status }}</span></td>
-            <td>{% if req.amount %}{{ req.amount|floatformat:2 }}{% else %}—{% endif %}</td>
+            <td>{{ req.description|truncatechars:40 }}
+                {% if req.description|length > 40 %}
+                <button class="btn btn-sm btn-outline" onclick="showFullDesc({{ req.id }})">...</button>
+                {% endif %}
+            </td>
+            <td>
+                {% if req.reference_image %}
+                <img src="{{ req.reference_image.url }}" class="img-thumb" onclick="openLightbox('{{ req.reference_image.url }}')" alt="Reference">
+                {% else %}
+                <span style="color:#999;">No image</span>
+                {% endif %}
+            </td>
+            <td><span class="badge {{ req.status }}">{{ req.get_status_display }}</span></td>
+            <td>{% if req.price_quote %}{{ req.price_quote|floatformat:2 }}{% else %}—{% endif %}</td>
+            <td>
+                <button class="btn btn-sm btn-info" onclick="showMeasurements({{ req.user_id }})" title="View measurements">📏</button>
+
+                {% if req.status == 'pending' %}
+                <button class="btn btn-sm btn-primary" onclick="acceptOrder({{ req.id }})">Accept</button>
+
+                {% elif req.status == 'cutting' %}
+                <button class="btn btn-sm btn-warning" onclick="updateStatus({{ req.id }}, 'sewing')">In Progress</button>
+
+                {% elif req.status == 'sewing' %}
+                <button class="btn btn-sm btn-success" onclick="updateStatus({{ req.id }}, 'completed')">Ready</button>
+
+                {% elif req.status == 'paid' %}
+                <button class="btn btn-sm btn-primary" onclick="updateStatus({{ req.id }}, 'cutting')">Start Cutting</button>
+
+                {% endif %}
+            </td>
             <td>{{ req.created_at|date:"M d, H:i" }}</td>
         </tr>
+        {% endwith %}
         {% empty %}
-        <tr><td colspan="5" class="empty">No tailoring orders found.</td></tr>
+        <tr><td colspan="7" class="empty">No tailoring orders found.</td></tr>
         {% endfor %}
     </tbody>
 </table>
@@ -48,4 +125,178 @@
     {% endif %}
 </div>
 {% endif %}
+
+<!-- Accept Modal -->
+<div class="modal-overlay" id="acceptModal">
+    <div class="modal-box">
+        <button class="modal-close" onclick="closeModal('acceptModal')">&times;</button>
+        <h3>Accept Order</h3>
+        <form id="acceptForm" method="post">
+            {% csrf_token %}
+            <input type="hidden" name="status" value="cutting">
+            <div style="margin-bottom:1rem;">
+                <label style="display:block;font-size:0.85rem;margin-bottom:0.3rem;color:#636e72;">Price Quote (₦)</label>
+                <input type="number" name="price_quote" step="0.01" min="0" class="price-input" style="width:150px;" required>
+            </div>
+            <button type="submit" class="btn btn-primary">Accept & Start Cutting</button>
+        </form>
+    </div>
+</div>
+
+<!-- Measurements Modal -->
+<div class="modal-overlay" id="measurementsModal">
+    <div class="modal-box">
+        <button class="modal-close" onclick="closeModal('measurementsModal')">&times;</button>
+        <h3>Customer Measurements</h3>
+        <div id="measurementBody">
+            <div class="measurement-grid">
+                <div class="measurement-item"><div class="label">Neck</div><div class="value" id="m-neck">—</div></div>
+                <div class="measurement-item"><div class="label">Chest</div><div class="value" id="m-chest">—</div></div>
+                <div class="measurement-item"><div class="label">Waist</div><div class="value" id="m-waist">—</div></div>
+                <div class="measurement-item"><div class="label">Shoulder</div><div class="value" id="m-shoulder">—</div></div>
+                <div class="measurement-item"><div class="label">Length</div><div class="value" id="m-length">—</div></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Full Description Modal -->
+<div class="modal-overlay" id="descModal">
+    <div class="modal-box">
+        <button class="modal-close" onclick="closeModal('descModal')">&times;</button>
+        <h3>Full Description</h3>
+        <p id="fullDesc" style="white-space:pre-wrap;color:#636e72;"></p>
+    </div>
+</div>
+
+<!-- Lightbox -->
+<div class="lightbox" id="lightbox" onclick="closeLightbox()">
+    <button class="lightbox-close" onclick="closeLightbox()">&times;</button>
+    <img id="lightboxImg" src="" alt="Full size reference">
+</div>
+
+<!-- Toast -->
+<div id="toast" class="toast"></div>
+
+<script>
+const measurementsData = {
+    {% for req in requests %}
+    {% with m=req._measurement %}
+        {% if m %}
+        {{ req.user_id }}: { neck: "{{ m.neck|default:'—' }}", chest: "{{ m.chest|default:'—' }}", waist: "{{ m.waist|default:'—' }}", shoulder: "{{ m.shoulder|default:'—' }}", length: "{{ m.length|default:'—' }}" },
+        {% endif %}
+    {% endwith %}
+    {% endfor %}
+};
+
+function showToast(msg, isError) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.className = 'toast' + (isError ? ' error' : '') + ' show';
+    setTimeout(() => t.className = 'toast', 3000);
+}
+
+function openModal(id) {
+    document.getElementById(id).classList.add('active');
+}
+
+function closeModal(id) {
+    document.getElementById(id).classList.remove('active');
+}
+
+function openLightbox(url) {
+    document.getElementById('lightboxImg').src = url;
+    document.getElementById('lightbox').classList.add('active');
+}
+
+function closeLightbox() {
+    document.getElementById('lightbox').classList.remove('active');
+}
+
+function showMeasurements(userId) {
+    const d = measurementsData[userId];
+    if (!d) { showToast('No measurements on file', true); return; }
+    document.getElementById('m-neck').textContent = d.neck;
+    document.getElementById('m-chest').textContent = d.chest;
+    document.getElementById('m-waist').textContent = d.waist;
+    document.getElementById('m-shoulder').textContent = d.shoulder;
+    document.getElementById('m-length').textContent = d.length;
+    openModal('measurementsModal');
+}
+
+function showFullDesc(orderId) {
+    {% for req in requests %}
+    {% if forloop.counter0 < 50 %}
+    if ({{ req.id }} === orderId) {
+        document.getElementById('fullDesc').textContent = `{{ req.description|escapejs }}`;
+        openModal('descModal');
+    }
+    {% endif %}
+    {% endfor %}
+}
+
+function acceptOrder(orderId) {
+    const form = document.getElementById('acceptForm');
+    form.action = '/dashboard/tailoring/' + orderId + '/update/';
+    openModal('acceptModal');
+}
+
+function updateStatus(orderId, status) {
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = '/dashboard/tailoring/' + orderId + '/update/';
+
+    const csrf = document.createElement('input');
+    csrf.type = 'hidden';
+    csrf.name = 'csrfmiddlewaretoken';
+    csrf.value = '{{ csrf_token }}';
+    form.appendChild(csrf);
+
+    const s = document.createElement('input');
+    s.type = 'hidden';
+    s.name = 'status';
+    s.value = status;
+    form.appendChild(s);
+
+    document.body.appendChild(form);
+    fetch(form.action, {
+        method: 'POST',
+        body: new FormData(form),
+        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    })
+    .then(r => r.json())
+    .then(d => {
+        form.remove();
+        if (d.error) { showToast(d.error, true); return; }
+        showToast(d.message);
+        setTimeout(() => location.reload(), 800);
+    })
+    .catch(() => { form.remove(); showToast('Update failed', true); });
+}
+
+document.getElementById('acceptForm')?.addEventListener('submit', function(e) {
+    e.preventDefault();
+    const formData = new FormData(this);
+    fetch(this.action, {
+        method: 'POST',
+        body: formData,
+        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    })
+    .then(r => r.json())
+    .then(d => {
+        closeModal('acceptModal');
+        if (d.error) { showToast(d.error, true); return; }
+        showToast(d.message);
+        setTimeout(() => location.reload(), 800);
+    })
+    .catch(() => { showToast('Update failed', true); });
+});
+
+// Close on overlay click
+document.querySelectorAll('.modal-overlay').forEach(el => {
+    el.addEventListener('click', function(e) {
+        if (e.target === this) this.classList.remove('active');
+    });
+});
+</script>
 {% endblock %}
