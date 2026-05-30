@@ -77,7 +77,7 @@ class DashboardPlanListView(LoginRequiredMixin, ListView):
     def get_queryset(self):
         provider = self.request.GET.get("provider")
         qs = DataPlan.objects.select_related("provider").order_by(
-            "provider__name", "name"
+            "provider__name", "plan_name"
         )
         if provider:
             qs = qs.filter(provider__slug=provider)

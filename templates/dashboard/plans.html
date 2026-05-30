@@ -26,7 +26,7 @@
         {% for plan in plans %}
         <tr>
             <td>{{ plan.provider.name }}</td>
-            <td>{{ plan.name }}</td>
+            <td>{{ plan.plan_name }}</td>
             <td>{{ plan.selling_price|floatformat:2 }}</td>
             <td>{{ plan.api_price|floatformat:2 }}</td>
             <td>{% if plan.is_active %}✅{% else %}❌{% endif %}</td>
