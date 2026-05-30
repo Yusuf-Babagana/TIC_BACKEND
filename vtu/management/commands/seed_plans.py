@@ -34,7 +34,7 @@ class Command(BaseCommand):
                     "network": network,
                     "plan_name": entry["name"],
                     "bundle_id": entry["id"],
-                    "price": Decimal(str(entry["price"])),
+                    "selling_price": Decimal(str(entry["price"])),
                     "is_active": True,
                 },
             )
@@ -52,7 +52,7 @@ class Command(BaseCommand):
                     "provider": provider,
                     "provider_name": pname,
                     "plan_name": entry["name"],
-                    "price": Decimal(str(entry["price"])),
+                    "selling_price": Decimal(str(entry["price"])),
                     "is_active": True,
                 },
             )

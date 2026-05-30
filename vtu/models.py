@@ -29,12 +29,12 @@ class DataPlan(models.Model):
     plan_name = models.CharField(max_length=100)
     bundle_id = models.IntegerField(unique=True, null=True, blank=True)
     plan_id = models.IntegerField(unique=True)
-    price = models.DecimalField(max_digits=10, decimal_places=2)
+    selling_price = models.DecimalField(max_digits=10, decimal_places=2)
     api_price = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     is_active = models.BooleanField(default=True)
 
     class Meta:
-        ordering = ["provider", "price"]
+        ordering = ["provider", "selling_price"]
 
     def __str__(self):
         return f"{self.network} - {self.plan_name}"
@@ -53,11 +53,11 @@ class CablePlan(models.Model):
     provider_name = models.CharField(max_length=10, choices=PROVIDER_CHOICES)
     plan_name = models.CharField(max_length=100)
     plan_id = models.IntegerField(unique=True)
-    price = models.DecimalField(max_digits=10, decimal_places=2)
+    selling_price = models.DecimalField(max_digits=10, decimal_places=2)
     is_active = models.BooleanField(default=True)
 
     class Meta:
-        ordering = ["provider_name", "price"]
+        ordering = ["provider_name", "selling_price"]
 
     def __str__(self):
         return f"{self.provider_name} - {self.plan_name}"

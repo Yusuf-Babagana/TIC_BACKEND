@@ -48,7 +48,7 @@ class DataPlanListView(APIView):
                     "id": p.plan_id,
                     "provider": p.network.lower(),
                     "name": p.plan_name,
-                    "price": float(p.price),
+                    "price": float(p.selling_price),
                 }
                 for p in qs
             ]
@@ -63,7 +63,7 @@ class DataPlanListView(APIView):
                     "id": p.plan_id,
                     "provider": p.provider_name,
                     "name": p.plan_name,
-                    "price": float(p.price),
+                    "price": float(p.selling_price),
                 }
                 for p in qs
             ]
@@ -319,7 +319,7 @@ class DataPurchaseView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        cost = plan.price
+        cost = plan.selling_price
         payload = {"bundle_id": plan.bundle_id, "phone_number": phone_number}
         return _execute_purchase(request.user, "DATA", cost, payload)
 
@@ -374,6 +374,6 @@ class CablePurchaseView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        cost = plan.price
+        cost = plan.selling_price
         payload = {"plan_id": plan.plan_id, "card_number": card_number, "phone": phone}
         return _execute_purchase(request.user, "CABLE", cost, payload)

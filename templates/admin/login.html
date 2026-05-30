@@ -1,0 +1,15 @@
+{% extends "admin/login.html" %}
+{% load static %}
+
+{% block branding %}
+<h1 id="site-name">
+    <a href="{% url 'admin:index' %}">TIC Backend Admin</a>
+</h1>
+{% endblock %}
+
+{% block content %}
+{{ block.super }}
+<div style="text-align:center; margin-top:1em; color:#666; font-size:0.85em;">
+    Use your staff account credentials to log in.
+</div>
+{% endblock %}
