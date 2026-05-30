@@ -44,7 +44,7 @@
 <div class="card-row">
     <div class="card">
         <div class="label">Wallet Balance</div>
-        <div class="value green">₦{{ wallet.balance|floatformat:2|default:"0.00" }}</div>
+        <div class="value green">{% if wallet %}₦{{ wallet.balance|floatformat:2 }}{% else %}No wallet{% endif %}</div>
     </div>
     <div class="card">
         <div class="label">Transactions</div>
