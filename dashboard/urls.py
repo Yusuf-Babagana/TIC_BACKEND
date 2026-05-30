@@ -3,6 +3,7 @@ from django.urls import path
 from .views import (
     AdminDashboardView,
     DashboardFinanceView,
+    DashboardFlyerView,
     DashboardLoginView,
     DashboardLogoutView,
     DashboardPlanListView,
@@ -43,6 +44,7 @@ urlpatterns = [
     ),
     path("finance/", DashboardFinanceView.as_view(), name="dashboard_finance"),
     path("finance/adjust/", DashboardWalletAdjustView.as_view(), name="dashboard_wallet_adjust"),
+    path("flyers/", DashboardFlyerView.as_view(), name="dashboard_flyers"),
     path("users/", DashboardUserListView.as_view(), name="dashboard_users"),
     path("users/<int:pk>/", DashboardUserDetailView.as_view(), name="dashboard_user_detail"),
     path(

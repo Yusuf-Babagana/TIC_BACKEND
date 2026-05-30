@@ -1,0 +1,78 @@
+{% extends "dashboard/base.html" %}
+
+{% block title %}Marketing Flyers - TIC Admin{% endblock %}
+{% block heading %}Marketing Flyers{% endblock %}
+
+{% block content %}
+<style>
+    .flyer-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
+    .flyer-card { background: #fff; border-radius: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); overflow: hidden; }
+    .flyer-card .preview { width: 100%; height: 200px; object-fit: cover; display: block; cursor: pointer; }
+    .flyer-card .body { padding: 1.25rem; }
+    .flyer-card .body h3 { font-size: 1rem; margin-bottom: 0.3rem; }
+    .flyer-card .body .meta { font-size: 0.8rem; color: #636e72; margin-bottom: 0.5rem; }
+    .flyer-card .body .meta span { margin-right: 1rem; }
+    .badge { display: inline-block; padding: 0.2rem 0.5rem; border-radius: 10px; font-size: 0.75rem; }
+    .badge.active { background: #55efc4; color: #00b894; }
+    .badge.inactive { background: #fab1a0; color: #d63031; }
+    .empty-state { background: #fff; border-radius: 10px; padding: 3rem; text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,0.1); grid-column: 1 / -1; }
+    .empty-state p { color: #636e72; margin-bottom: 1rem; }
+    .btn { display: inline-block; padding: 0.4rem 0.8rem; border-radius: 6px; border: none; font-size: 0.85rem; cursor: pointer; text-decoration: none; }
+    .btn-success { background: #00b894; color: #fff; }
+    .btn-primary { background: #0984e3; color: #fff; }
+    .btn-outline { background: transparent; border: 1px solid #0984e3; color: #0984e3; }
+    .btn-sm { padding: 0.25rem 0.5rem; font-size: 0.75rem; }
+
+    .lightbox { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.9); z-index: 2000; justify-content: center; align-items: center; }
+    .lightbox.active { display: flex; }
+    .lightbox img { max-width: 90%; max-height: 90%; border-radius: 8px; }
+    .lightbox-close { position: fixed; top: 1rem; right: 1.5rem; color: #fff; font-size: 2rem; cursor: pointer; background: none; border: none; z-index: 2001; }
+</style>
+
+<p style="color:#636e72;margin-bottom:1.5rem;">
+    These are the 2 marketing flyers displayed on the mobile app home screen.
+    Upload or update them via <a href="{% url 'admin:marketing_flyer_changelist' %}" style="color:#0984e3;">Django Admin</a>.
+</p>
+
+<div class="flyer-grid">
+    {% for flyer in flyers %}
+    <div class="flyer-card">
+        {% if flyer.image %}
+        <img src="{{ flyer.image.url }}" class="preview" onclick="openLightbox('{{ flyer.image.url }}')" alt="{{ flyer.title }}">
+        {% endif %}
+        <div class="body">
+            <h3>{{ flyer.title }}</h3>
+            <div class="meta">
+                <span>Position: Flyer {{ flyer.position }}</span>
+                <span class="badge {% if flyer.is_active %}active{% else %}inactive{% endif %}">{{ flyer.is_active|yesno:"Active,Inactive" }}</span>
+            </div>
+            {% if flyer.link_url %}
+            <div class="meta">Link: <a href="{{ flyer.link_url }}" target="_blank" style="color:#0984e3;">{{ flyer.link_url|truncatechars:40 }}</a></div>
+            {% endif %}
+            <div class="meta">Created: {{ flyer.created_at|date:"M d, Y" }}</div>
+            <a href="{% url 'admin:marketing_flyer_change' flyer.id %}" class="btn btn-sm btn-outline" style="margin-top:0.5rem;">Edit</a>
+        </div>
+    </div>
+    {% empty %}
+    <div class="empty-state">
+        <p>No flyers uploaded yet.</p>
+        <a href="{% url 'admin:marketing_flyer_add' %}" class="btn btn-success">Upload First Flyer</a>
+    </div>
+    {% endfor %}
+</div>
+
+<div class="lightbox" id="lightbox" onclick="closeLightbox()">
+    <button class="lightbox-close" onclick="closeLightbox()">&times;</button>
+    <img id="lightboxImg" src="" alt="Full size">
+</div>
+
+<script>
+function openLightbox(url) {
+    document.getElementById('lightboxImg').src = url;
+    document.getElementById('lightbox').classList.add('active');
+}
+function closeLightbox() {
+    document.getElementById('lightbox').classList.remove('active');
+}
+</script>
+{% endblock %}

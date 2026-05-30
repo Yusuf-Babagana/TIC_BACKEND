@@ -13,6 +13,7 @@ from django.views import View
 from django.contrib.auth import get_user_model
 
 from fashion.models import CustomStyleRequest, Notification, UserMeasurement
+from marketing.models import Flyer as FlyerModel
 from vtu.models import DataPlan, Provider
 from wallet.models import Transaction, Wallet
 
@@ -445,3 +446,13 @@ class DashboardUserToggleActiveView(LoginRequiredMixin, View):
             "is_active": user.is_active,
             "message": f"User {'unblocked' if user.is_active else 'blocked'}",
         })
+
+
+class DashboardFlyerView(LoginRequiredMixin, TemplateView):
+    template_name = "dashboard/flyers.html"
+    login_url = "/dashboard/login/"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["flyers"] = FlyerModel.objects.all().order_by("position")
+        return context

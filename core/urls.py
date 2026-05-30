@@ -29,4 +29,6 @@ urlpatterns = [
     path('fashion/', include('fashion.urls')),
     path('vtu/', include('vtu.urls')),
     path('api/v1/resellers/', include('vtu.reseller_urls')),
+    path('marketing/', include('marketing.urls')),
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+
