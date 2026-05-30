@@ -1,0 +1,53 @@
+{% extends "dashboard/base.html" %}
+
+{% block title %}Transactions - TIC Admin{% endblock %}
+{% block heading %}Transactions{% endblock %}
+
+{% block content %}
+<div class="filter-bar">
+    <a href="{% url 'dashboard_transactions' %}" {% if not active_status %}class="active"{% endif %}>All</a>
+    <a href="{% url 'dashboard_transactions' %}?status=SUCCESSFUL" {% if active_status == 'SUCCESSFUL' %}class="active"{% endif %}>Successful</a>
+    <a href="{% url 'dashboard_transactions' %}?status=FAILED" {% if active_status == 'FAILED' %}class="active"{% endif %}>Failed</a>
+    <a href="{% url 'dashboard_transactions' %}?status=pending" {% if active_status == 'pending' %}class="active"{% endif %}>Pending</a>
+    <a href="{% url 'dashboard_transactions' %}?status=processing" {% if active_status == 'processing' %}class="active"{% endif %}>Processing</a>
+</div>
+
+<table>
+    <thead>
+        <tr>
+            <th>Reference</th>
+            <th>User</th>
+            <th>Type</th>
+            <th>Amount (₦)</th>
+            <th>Status</th>
+            <th>Date</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for txn in transactions %}
+        <tr>
+            <td>{{ txn.reference|truncatechars:20 }}</td>
+            <td>{{ txn.user.username }}</td>
+            <td>{{ txn.transaction_type }}</td>
+            <td>{{ txn.amount|floatformat:2 }}</td>
+            <td><span class="badge {{ txn.status }}">{{ txn.status }}</span></td>
+            <td>{{ txn.created_at|date:"M d, H:i" }}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="6" class="empty">No transactions found.</td></tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+{% if is_paginated %}
+<div class="pagination">
+    {% if page_obj.has_previous %}
+    <a href="?page={{ page_obj.previous_page_number }}{% if active_status %}&status={{ active_status }}{% endif %}">Previous</a>
+    {% endif %}
+    <span>Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+    {% if page_obj.has_next %}
+    <a href="?page={{ page_obj.next_page_number }}{% if active_status %}&status={{ active_status }}{% endif %}">Next</a>
+    {% endif %}
+</div>
+{% endif %}
+{% endblock %}

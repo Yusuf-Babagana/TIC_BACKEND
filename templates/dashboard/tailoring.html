@@ -1,0 +1,51 @@
+{% extends "dashboard/base.html" %}
+
+{% block title %}Tailoring Orders - TIC Admin{% endblock %}
+{% block heading %}Tailoring Orders{% endblock %}
+
+{% block content %}
+<div class="filter-bar">
+    <a href="{% url 'dashboard_tailoring' %}" {% if not active_status %}class="active"{% endif %}>All</a>
+    <a href="{% url 'dashboard_tailoring' %}?status=pending" {% if active_status == 'pending' %}class="active"{% endif %}>Pending</a>
+    <a href="{% url 'dashboard_tailoring' %}?status=paid" {% if active_status == 'paid' %}class="active"{% endif %}>Paid</a>
+    <a href="{% url 'dashboard_tailoring' %}?status=completed" {% if active_status == 'completed' %}class="active"{% endif %}>Completed</a>
+    <a href="{% url 'dashboard_tailoring' %}?status=failed" {% if active_status == 'failed' %}class="active"{% endif %}>Failed</a>
+</div>
+
+<table>
+    <thead>
+        <tr>
+            <th>User</th>
+            <th>Description</th>
+            <th>Status</th>
+            <th>Amount (₦)</th>
+            <th>Date</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for req in requests %}
+        <tr>
+            <td>{{ req.user.username }}</td>
+            <td>{{ req.description|truncatechars:50 }}</td>
+            <td><span class="badge {{ req.status }}">{{ req.status }}</span></td>
+            <td>{% if req.amount %}{{ req.amount|floatformat:2 }}{% else %}—{% endif %}</td>
+            <td>{{ req.created_at|date:"M d, H:i" }}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="5" class="empty">No tailoring orders found.</td></tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+{% if is_paginated %}
+<div class="pagination">
+    {% if page_obj.has_previous %}
+    <a href="?page={{ page_obj.previous_page_number }}{% if active_status %}&status={{ active_status }}{% endif %}">Previous</a>
+    {% endif %}
+    <span>Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+    {% if page_obj.has_next %}
+    <a href="?page={{ page_obj.next_page_number }}{% if active_status %}&status={{ active_status }}{% endif %}">Next</a>
+    {% endif %}
+</div>
+{% endif %}
+{% endblock %}

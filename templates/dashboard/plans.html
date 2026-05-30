@@ -1,0 +1,40 @@
+{% extends "dashboard/base.html" %}
+
+{% block title %}Manage Plans - TIC Admin{% endblock %}
+{% block heading %}Manage Plans{% endblock %}
+
+{% block content %}
+<div class="filter-bar">
+    <a href="{% url 'dashboard_plans' %}" {% if not active_provider %}class="active"{% endif %}>All</a>
+    {% for p in providers %}
+    <a href="{% url 'dashboard_plans' %}?provider={{ p.slug }}" {% if active_provider == p.slug %}class="active"{% endif %}>{{ p.name }}</a>
+    {% endfor %}
+</div>
+
+<table>
+    <thead>
+        <tr>
+            <th>Provider</th>
+            <th>Name</th>
+            <th>Selling Price (₦)</th>
+            <th>API Price (₦)</th>
+            <th>Active</th>
+            <th>Bundle ID</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for plan in plans %}
+        <tr>
+            <td>{{ plan.provider.name }}</td>
+            <td>{{ plan.name }}</td>
+            <td>{{ plan.selling_price|floatformat:2 }}</td>
+            <td>{{ plan.api_price|floatformat:2 }}</td>
+            <td>{% if plan.is_active %}✅{% else %}❌{% endif %}</td>
+            <td>{{ plan.bundle_id }}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="6" class="empty">No plans found.</td></tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}

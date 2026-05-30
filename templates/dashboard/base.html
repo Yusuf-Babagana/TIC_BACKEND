@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}TIC Admin{% endblock %}</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f5f6fa; color: #2d3436; }
+        .sidebar { position: fixed; left: 0; top: 0; bottom: 0; width: 220px; background: #2d3436; color: #fff; padding: 2rem 0; z-index: 10; }
+        .sidebar h2 { padding: 0 1.5rem; margin-bottom: 2rem; font-size: 1.2rem; }
+        .sidebar a { display: block; padding: 0.75rem 1.5rem; color: #b2bec3; text-decoration: none; transition: 0.2s; }
+        .sidebar a:hover { background: #636e72; color: #fff; }
+        .sidebar a.active { background: #0984e3; color: #fff; }
+        .main { margin-left: 220px; min-height: 100vh; }
+        header { display: flex; justify-content: space-between; align-items: center; padding: 2rem 2rem 0; }
+        header h1 { font-size: 1.5rem; }
+        header .user { color: #636e72; font-size: 0.9rem; }
+        .content { padding: 1.5rem 2rem 2rem; }
+        table { width: 100%; border-collapse: collapse; background: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+        th, td { text-align: left; padding: 0.75rem 1rem; border-bottom: 1px solid #eee; font-size: 0.9rem; }
+        th { background: #f8f9fa; color: #636e72; font-weight: 600; }
+        tr:hover { background: #f8f9fa; }
+        .badge { display: inline-block; padding: 0.2rem 0.6rem; border-radius: 12px; font-size: 0.8rem; }
+        .badge.pending { background: #ffeaa7; color: #6c5ce7; }
+        .badge.SUCCESSFUL, .badge.paid, .badge.completed { background: #55efc4; color: #00b894; }
+        .badge.FAILED, .badge.failed { background: #fab1a0; color: #d63031; }
+        .badge.processing { background: #dfe6e9; color: #636e72; }
+        .filter-bar { margin-bottom: 1rem; display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
+        .filter-bar a { padding: 0.4rem 0.8rem; border-radius: 6px; text-decoration: none; font-size: 0.85rem; color: #636e72; background: #fff; border: 1px solid #dfe6e9; }
+        .filter-bar a.active { background: #0984e3; color: #fff; border-color: #0984e3; }
+        .pagination { margin-top: 1rem; text-align: center; }
+        .pagination a { padding: 0.4rem 0.8rem; margin: 0 0.2rem; border-radius: 6px; text-decoration: none; font-size: 0.85rem; color: #0984e3; background: #fff; border: 1px solid #dfe6e9; }
+        .pagination a:hover { background: #0984e3; color: #fff; }
+        .pagination span { padding: 0.4rem 0.8rem; font-size: 0.85rem; color: #636e72; }
+        .empty { text-align: center; color: #999; padding: 3rem; }
+        @media (max-width: 768px) {
+            .sidebar { width: 60px; overflow: hidden; }
+            .sidebar h2, .sidebar a span { display: none; }
+            .main { margin-left: 60px; }
+        }
+    </style>
+</head>
+<body>
+    <nav class="sidebar">
+        <h2>TIC Admin</h2>
+        <a href="{% url 'admin_dashboard' %}" {% if request.resolver_match.view_name == 'admin_dashboard' %}class="active"{% endif %}>Dashboard</a>
+        <a href="{% url 'dashboard_plans' %}" {% if request.resolver_match.view_name == 'dashboard_plans' %}class="active"{% endif %}>Manage Plans</a>
+        <a href="{% url 'dashboard_transactions' %}" {% if request.resolver_match.view_name == 'dashboard_transactions' %}class="active"{% endif %}>Transactions</a>
+        <a href="{% url 'dashboard_tailoring' %}" {% if request.resolver_match.view_name == 'dashboard_tailoring' %}class="active"{% endif %}>Tailoring</a>
+        <a href="{% url 'dashboard_logout' %}">Logout</a>
+    </nav>
+
+    <div class="main">
+        <header>
+            <h1>{% block heading %}TIC Admin{% endblock %}</h1>
+            <div class="user">{{ user.get_full_name|default:user.username }}</div>
+        </header>
+        <div class="content">
+        {% block content %}{% endblock %}
+        </div>
+    </div>
+</body>
+</html>
