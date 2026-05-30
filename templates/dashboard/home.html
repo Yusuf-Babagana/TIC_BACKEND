@@ -41,10 +41,10 @@
         <h2>TIC Admin</h2>
         <a href="{% url 'admin_dashboard' %}" class="active">Dashboard</a>
         <a href="{% url 'admin:index' %}">Django Admin</a>
-        <a href="{% url 'admin:vtu_dataplan_changelist' %}">Data Plans</a>
+        <a href="{% url 'admin:vtu_dataplan_changelist' %}">Manage Plans</a>
         <a href="{% url 'admin:wallet_transaction_changelist' %}">Transactions</a>
         <a href="{% url 'admin:fashion_customstylerequest_changelist' %}">Tailoring</a>
-        <a href="{% url 'logout' %}">Logout</a>
+        <a href="{% url 'dashboard_logout' %}">Logout</a>
     </nav>
 
     <div class="main">
@@ -99,9 +99,10 @@
         </section>
 
         <div class="footer-links">
-            <a href="{% url 'admin:vtu_dataplan_changelist' %}">Manage Data Plans</a>
-            <a href="{% url 'admin:wallet_transaction_changelist' %}">View Transactions</a>
+            <a href="{% url 'admin:vtu_dataplan_changelist' %}">Manage Plans</a>
+            <a href="{% url 'admin:wallet_transaction_changelist' %}">Transactions</a>
             <a href="{% url 'admin:fashion_customstylerequest_changelist' %}">Tailoring Orders</a>
+            <a href="{% url 'admin:index' %}">Django Admin</a>
         </div>
     </div>
 </body>

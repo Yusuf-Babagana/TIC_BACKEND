@@ -16,6 +16,7 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.contrib.auth.views import LogoutView
+from django.http import HttpResponseRedirect
 from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
@@ -23,9 +24,10 @@ from django.conf.urls.static import static
 from dashboard.views import AdminDashboardView
 
 urlpatterns = [
-    path('', AdminDashboardView.as_view(), name='admin_dashboard'),
+    path('', lambda r: HttpResponseRedirect('/dashboard/'), name='root'),
+    path('dashboard/', AdminDashboardView.as_view(), name='admin_dashboard'),
     path('admin/', admin.site.urls),
-    path('logout/', LogoutView.as_view(next_page='/'), name='logout'),
+    path('dashboard/logout/', LogoutView.as_view(next_page='/dashboard/'), name='dashboard_logout'),
     path('users/', include('users.urls')),
     path('wallet/', include('wallet.urls')),
     path('fashion/', include('fashion.urls')),
