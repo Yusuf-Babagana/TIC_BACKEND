@@ -8,17 +8,21 @@
     <style>
         *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
         :root {
-            --bg: #f0f2f5;
-            --card: #fff;
-            --border: #e8ecf0;
-            --text: #1a1d29;
-            --text-secondary: #6b7280;
-            --accent: #2463eb;
-            --accent-hover: #1a4fbf;
-            --danger: #ef4444;
+            --primary: #2E1065;
+            --primary-muted: #6D28D9;
+            --accent: #D97706;
+            --bg: #F8FAFC;
+            --card: #FFFFFF;
+            --border: #E2E8F0;
+            --text: #0F172A;
+            --text-secondary: #64748B;
+            --text-tertiary: #94A3B8;
+            --danger: #EF4444;
             --radius: 12px;
-            --shadow: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+            --shadow: 0 1px 2px rgba(0,0,0,0.04), 0 1px 3px rgba(0,0,0,0.06);
             --shadow-lg: 0 10px 40px rgba(0,0,0,0.08);
+            --gradient-primary: linear-gradient(135deg, #2E1065, #4C1D95, #6D28D9);
+            --gradient-promo: linear-gradient(135deg, #92400E, #B45309, #D97706);
         }
         html { font-size: 15px; }
         body {
@@ -34,12 +38,12 @@
         .login-wrap {
             display: flex;
             background: var(--card);
-            border-radius: var(--radius);
+            border-radius: 16px;
             box-shadow: var(--shadow-lg);
             overflow: hidden;
-            max-width: 900px;
+            max-width: 920px;
             width: 100%;
-            min-height: 500px;
+            min-height: 520px;
         }
         .login-side {
             width: 380px;
@@ -50,22 +54,24 @@
         }
         .login-brand {
             display: flex; align-items: center; gap: 0.75rem;
-            margin-bottom: 0.75rem;
+            margin-bottom: 0.5rem;
         }
         .login-brand .logo {
-            width: 40px; height: 40px; background: var(--accent);
-            border-radius: 10px; display: flex; align-items: center; justify-content: center;
-            font-weight: 800; font-size: 1.1rem; color: #fff; flex-shrink: 0;
+            width: 42px; height: 42px;
+            background: var(--gradient-promo);
+            border-radius: 12px; display: flex; align-items: center; justify-content: center;
+            font-weight: 800; font-size: 1.15rem; color: #fff; flex-shrink: 0;
+            box-shadow: 0 2px 8px rgba(217,119,6,0.25);
         }
         .login-brand .brand-text { line-height: 1.2; }
         .login-brand .brand-text strong { display: block; font-size: 1.1rem; font-weight: 700; }
-        .login-brand .brand-text small { font-size: 0.7rem; color: var(--text-secondary); font-weight: 500; }
+        .login-brand .brand-text small { font-size: 0.7rem; color: var(--text-tertiary); font-weight: 500; }
         .login-side h1 { font-size: 1.4rem; font-weight: 700; margin-bottom: 0.2rem; }
         .login-side p.sub { color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 1.75rem; }
 
         .login-banner {
             flex: 1;
-            background: linear-gradient(135deg, #2463eb 0%, #7c3aed 100%);
+            background: var(--gradient-primary);
             display: flex;
             flex-direction: column;
             align-items: center;
@@ -73,13 +79,31 @@
             padding: 3rem;
             color: #fff;
             text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+        .login-banner::before {
+            content: '';
+            position: absolute;
+            width: 300px; height: 300px;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.04);
+            top: -80px; right: -80px;
+        }
+        .login-banner::after {
+            content: '';
+            position: absolute;
+            width: 200px; height: 200px;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.03);
+            bottom: -40px; left: -40px;
         }
         .login-banner .icon {
             font-size: 3rem; margin-bottom: 1.5rem;
-            opacity: 0.9;
+            opacity: 0.9; position: relative;
         }
-        .login-banner h2 { font-size: 1.5rem; font-weight: 700; margin-bottom: 0.5rem; }
-        .login-banner p { font-size: 0.9rem; opacity: 0.85; max-width: 280px; line-height: 1.6; }
+        .login-banner h2 { font-size: 1.5rem; font-weight: 700; margin-bottom: 0.5rem; position: relative; }
+        .login-banner p { font-size: 0.9rem; opacity: 0.8; max-width: 280px; line-height: 1.6; position: relative; }
 
         .form-group { margin-bottom: 1rem; }
         .form-group label {
@@ -88,31 +112,31 @@
         }
         .form-group input {
             width: 100%; padding: 0.7rem 0.85rem;
-            border: 1px solid var(--border); border-radius: 8px;
+            border: 1px solid var(--border); border-radius: 10px;
             font-size: 0.9rem; font-family: inherit;
             transition: border-color .15s, box-shadow .15s;
         }
         .form-group input:focus {
-            outline: none; border-color: var(--accent);
-            box-shadow: 0 0 0 3px rgba(36,99,235,0.1);
+            outline: none; border-color: var(--primary-muted);
+            box-shadow: 0 0 0 3px rgba(109,40,217,0.1);
         }
-        .form-group input::placeholder { color: #b0b7c3; }
+        .form-group input::placeholder { color: var(--text-tertiary); }
 
         button {
             width: 100%; padding: 0.7rem;
-            background: var(--accent); color: #fff;
-            border: none; border-radius: 8px;
+            background: var(--gradient-primary);
+            color: #fff; border: none; border-radius: 10px;
             font-size: 0.95rem; font-weight: 600; font-family: inherit;
-            cursor: pointer; transition: background .15s;
+            cursor: pointer; transition: opacity .15s;
         }
-        button:hover { background: var(--accent-hover); }
+        button:hover { opacity: 0.92; }
         button:active { transform: scale(0.98); }
 
         .error {
-            background: #fef2f2; color: var(--danger);
-            padding: 0.6rem 0.85rem; border-radius: 8px;
+            background: #FEF2F2; color: var(--danger);
+            padding: 0.6rem 0.85rem; border-radius: 10px;
             margin-bottom: 1rem; font-size: 0.85rem;
-            border: 1px solid #fecaca;
+            border: 1px solid #FECACA;
             display: flex; align-items: center; gap: 0.4rem;
         }
 

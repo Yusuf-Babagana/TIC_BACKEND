@@ -6,7 +6,7 @@
 {% block content %}
 <style>
     .price-input { width: 90px; padding: 0.3rem 0.4rem; border: 1px solid var(--border); border-radius: 6px; font-size: 0.85rem; text-align: right; }
-    .price-input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(36,99,235,0.08); }
+    .price-input:focus { outline: none; border-color: var(--primary-muted); box-shadow: 0 0 0 3px rgba(109,40,217,0.08); }
     .price-saved { color: var(--success); font-size: 0.75rem; margin-left: 0.3rem; opacity: 0; transition: opacity 0.3s; }
     .price-saved.show { opacity: 1; }
 
@@ -20,7 +20,7 @@
     .sync-bar { background: var(--card); border-radius: var(--radius); border: 1px solid var(--border); padding: 1rem 1.5rem; box-shadow: var(--shadow); margin-bottom: 1.25rem; display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; }
     .sync-bar .label { font-size: 0.85rem; color: var(--text-secondary); font-weight: 600; }
     .sync-bar select { padding: 0.4rem 0.6rem; border: 1px solid var(--border); border-radius: 6px; font-size: 0.85rem; }
-    .sync-bar .spinner { display: none; width: 18px; height: 18px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.6s linear infinite; }
+    .sync-bar .spinner { display: none; width: 18px; height: 18px; border: 2px solid var(--border); border-top-color: var(--primary-muted); border-radius: 50%; animation: spin 0.6s linear infinite; }
     @keyframes spin { to { transform: rotate(360deg); } }
 </style>
 
