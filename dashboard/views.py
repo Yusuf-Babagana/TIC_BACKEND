@@ -14,7 +14,7 @@ from django.views import View
 from django.contrib.auth import get_user_model
 
 from fashion.models import CustomStyleRequest, Notification, UserMeasurement
-from marketing.models import Flyer as FlyerModel, MarketingGallery as MarketingGalleryModel
+from marketing.models import Flyer as FlyerModel, MarketingGallery as MarketingGalleryModel, Order as OrderModel
 from vtu.models import DataPlan, Provider
 from wallet.models import Transaction, Wallet
 
@@ -585,3 +585,36 @@ class DashboardGalleryDeleteView(LoginRequiredMixin, View):
         img = get_object_or_404(MarketingGalleryModel, pk=pk)
         img.delete()
         return JsonResponse({"message": "Image deleted"})
+
+
+class DashboardOrderListView(LoginRequiredMixin, ListView):
+    template_name = "dashboard/orders.html"
+    login_url = "/dashboard/login/"
+    context_object_name = "orders"
+    paginate_by = 50
+
+    def get_queryset(self):
+        qs = OrderModel.objects.all().prefetch_related("items", "user")
+        status_filter = self.request.GET.get("status", "")
+        if status_filter in dict(OrderModel.STATUS_CHOICES):
+            qs = qs.filter(status=status_filter)
+        return qs.order_by("-created_at")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["current_status"] = self.request.GET.get("status", "")
+        context["status_choices"] = OrderModel.STATUS_CHOICES
+        return context
+
+
+class DashboardOrderUpdateView(LoginRequiredMixin, View):
+    login_url = "/dashboard/login/"
+
+    def post(self, request, pk):
+        order = get_object_or_404(OrderModel, pk=pk)
+        new_status = request.POST.get("status", "").strip()
+        if new_status in dict(OrderModel.STATUS_CHOICES):
+            order.status = new_status
+            order.save(update_fields=["status"])
+            return JsonResponse({"message": f"Order #{order.id} is now {order.get_status_display()}"})
+        return JsonResponse({"error": "Invalid status"}, status=400)

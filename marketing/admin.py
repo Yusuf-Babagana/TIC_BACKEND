@@ -1,6 +1,28 @@
 from django.contrib import admin
 
-from .models import Flyer, MarketingGallery
+from .models import Cart, CartItem, Flyer, MarketingGallery, Order, OrderItem
+
+
+@admin.register(Cart)
+class CartAdmin(admin.ModelAdmin):
+    list_display = ("id", "user", "total", "created_at")
+
+
+@admin.register(CartItem)
+class CartItemAdmin(admin.ModelAdmin):
+    list_display = ("id", "cart", "gallery_item", "quantity", "total")
+
+
+@admin.register(Order)
+class OrderAdmin(admin.ModelAdmin):
+    list_display = ("id", "user", "reference", "total", "status", "created_at")
+    list_filter = ("status",)
+    search_fields = ("reference", "user__username")
+
+
+@admin.register(OrderItem)
+class OrderItemAdmin(admin.ModelAdmin):
+    list_display = ("id", "order", "title", "price", "quantity", "total")
 
 
 @admin.register(MarketingGallery)
