@@ -32,6 +32,7 @@ INSTALLED_APPS = [
     "wallet",
     "vtu",
     "fashion",
+    "dashboard",
     "rest_framework",
     "rest_framework_simplejwt",
 ]
@@ -143,6 +144,9 @@ PROXY_TEST_NIN = env("PROXY_TEST_NIN", default="").strip()
 # ------------------------------------------------------------------
 # CORS
 # ------------------------------------------------------------------
+LOGIN_URL = "/admin/login/"
+LOGOUT_REDIRECT_URL = "/"
+
 CORS_ALLOWED_ORIGINS = env.list(
     "CORS_ALLOWED_ORIGINS",
     default=[
