@@ -5,56 +5,31 @@
 
 {% block content %}
 <style>
-    .btn { display: inline-block; padding: 0.35rem 0.7rem; border-radius: 6px; border: none; font-size: 0.8rem; cursor: pointer; text-decoration: none; }
-    .btn-success { background: #00b894; color: #fff; }
-    .btn-danger { background: #d63031; color: #fff; }
-    .btn-outline { background: transparent; border: 1px solid #636e72; color: #636e72; }
-    .btn-sm { padding: 0.25rem 0.5rem; font-size: 0.75rem; }
-    .card-row { display: flex; gap: 1rem; flex-wrap: wrap; margin-bottom: 1.5rem; }
-    .card { background: #fff; border-radius: 8px; padding: 1.25rem; box-shadow: 0 1px 3px rgba(0,0,0,0.1); flex: 1; min-width: 200px; }
-    .card .label { font-size: 0.8rem; color: #636e72; }
-    .card .value { font-size: 1.3rem; font-weight: 700; color: #2d3436; margin-top: 0.2rem; }
-    .card .value.green { color: #00b894; }
-    .badge { display: inline-block; padding: 0.2rem 0.6rem; border-radius: 10px; font-size: 0.8rem; }
-    .badge.active { background: #55efc4; color: #00b894; }
-    .badge.inactive { background: #fab1a0; color: #d63031; }
-    .badge.verified { background: #74b9ff; color: #0984e3; }
-    .badge.SUCCESSFUL { background: #55efc4; color: #00b894; }
-    .badge.FAILED { background: #fab1a0; color: #d63031; }
-    .badge.PENDING { background: #ffeaa7; color: #6c5ce7; }
-    .badge.pending, .badge.quoted { background: #ffeaa7; color: #6c5ce7; }
-    .badge.paid, .badge.cutting { background: #74b9ff; color: #0984e3; }
-    .badge.sewing { background: #fdcb6e; color: #e17055; }
-    .badge.completed { background: #55efc4; color: #00b894; }
-    section { background: #fff; border-radius: 8px; padding: 1.5rem; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 1.5rem; }
-    section h3 { font-size: 1rem; margin-bottom: 1rem; }
-    table { width: 100%; border-collapse: collapse; }
-    th, td { text-align: left; padding: 0.6rem 0.5rem; border-bottom: 1px solid #eee; font-size: 0.85rem; }
-    th { color: #636e72; font-weight: 600; }
-    .info-grid { display: grid; grid-template-columns: 120px 1fr; gap: 0.5rem; font-size: 0.9rem; }
-    .info-grid .key { color: #636e72; }
-
-    .toast { visibility: hidden; min-width: 250px; background: #00b894; color: #fff; text-align: center; border-radius: 8px; padding: 1rem; position: fixed; bottom: 2rem; left: 50%; transform: translateX(-50%); z-index: 3000; opacity: 0; transition: opacity 0.3s, visibility 0.3s; }
-    .toast.show { visibility: visible; opacity: 1; }
-    .toast.error { background: #d63031; }
+    .profile-cards { display: flex; gap: 1rem; flex-wrap: wrap; margin-bottom: 1.5rem; }
+    .profile-card { background: var(--card); border-radius: var(--radius); border: 1px solid var(--border); padding: 1.25rem; box-shadow: var(--shadow); flex: 1; min-width: 200px; }
+    .profile-card .label { font-size: 0.78rem; color: var(--text-secondary); font-weight: 500; }
+    .profile-card .value { font-size: 1.3rem; font-weight: 700; margin-top: 0.15rem; }
+    .profile-card .value.green { color: var(--success); }
+    .info-grid { display: grid; grid-template-columns: 130px 1fr; gap: 0.5rem; font-size: 0.88rem; align-items: center; }
+    .info-grid .key { color: var(--text-secondary); font-weight: 500; }
 </style>
 
 {% csrf_token %}
 
-<div class="card-row">
-    <div class="card">
+<div class="profile-cards">
+    <div class="profile-card">
         <div class="label">Wallet Balance</div>
         <div class="value green">{% if wallet %}₦{{ wallet.balance|floatformat:2 }}{% else %}No wallet{% endif %}</div>
     </div>
-    <div class="card">
+    <div class="profile-card">
         <div class="label">Transactions</div>
         <div class="value">{{ transactions|length }}</div>
     </div>
-    <div class="card">
+    <div class="profile-card">
         <div class="label">Tailoring Orders</div>
         <div class="value">{{ tailoring_orders|length }}</div>
     </div>
-    <div class="card">
+    <div class="profile-card">
         <div class="label">Account</div>
         <div class="value">
             <span class="badge {% if profile.is_active %}active{% else %}inactive{% endif %}">
@@ -64,8 +39,8 @@
     </div>
 </div>
 
-<section>
-    <h3>Profile</h3>
+<div class="section-card">
+    <h2>Profile</h2>
     <div class="info-grid">
         <span class="key">Username</span><span>{{ profile.username }}</span>
         <span class="key">Email</span><span>{{ profile.email }}</span>
@@ -82,21 +57,22 @@
         <button class="btn btn-success" onclick="toggleActive({{ profile.id }})">Unblock User</button>
         {% endif %}
     </div>
-</section>
+</div>
 
 {% if wallet and wallet.account_number %}
-<section>
-    <h3>Virtual Account</h3>
+<div class="section-card">
+    <h2>Virtual Account</h2>
     <div class="info-grid">
         <span class="key">Bank</span><span>{{ wallet.bank_name|default:"—" }}</span>
-        <span class="key">Account Number</span><span style="font-family:monospace;font-size:1.1rem;">{{ wallet.account_number }}</span>
+        <span class="key">Account Number</span><span style="font-family:monospace;font-size:1.1rem;font-weight:700;color:var(--accent);">{{ wallet.account_number }}</span>
         <span class="key">Account Ref</span><span style="font-size:0.8rem;">{{ wallet.account_reference|default:"—" }}</span>
     </div>
-</section>
+</div>
 {% endif %}
 
-<section>
-    <h3>Recent Transactions</h3>
+<div class="section-card">
+    <h2>Recent Transactions</h2>
+    <div class="table-wrap">
     <table>
         <thead>
             <tr>
@@ -121,10 +97,12 @@
             {% endfor %}
         </tbody>
     </table>
-</section>
+    </div>
+</div>
 
-<section>
-    <h3>Tailoring Orders</h3>
+<div class="section-card">
+    <h2>Tailoring Orders</h2>
+    <div class="table-wrap">
     <table>
         <thead>
             <tr>
@@ -149,34 +127,15 @@
             {% endfor %}
         </tbody>
     </table>
-</section>
-
-<div id="toast" class="toast"></div>
+    </div>
+</div>
 
 <script>
-function showToast(msg, isError) {
-    const t = document.getElementById('toast');
-    t.textContent = msg;
-    t.className = 'toast' + (isError ? ' error' : '') + ' show';
-    setTimeout(() => t.className = 'toast', 3000);
-}
-
-function getCSRF() { return document.querySelector('[name=csrfmiddlewaretoken]')?.value || ''; }
-
 function toggleActive(userId) {
     const form = new FormData();
     form.append('csrfmiddlewaretoken', getCSRF());
-    fetch('/dashboard/users/' + userId + '/toggle-active/', {
-        method: 'POST',
-        body: form,
-        headers: { 'X-Requested-With': 'XMLHttpRequest' }
-    })
-    .then(r => r.json())
-    .then(d => {
-        if (d.error) { showToast(d.error, true); return; }
-        showToast(d.message);
-        setTimeout(() => location.reload(), 800);
-    })
+    fetch('/dashboard/users/' + userId + '/toggle-active/', { method: 'POST', body: form, headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+    .then(r => r.json()).then(d => { if (d.error) { showToast(d.error, true); return; } showToast(d.message); setTimeout(() => location.reload(), 800); })
     .catch(() => showToast('Request failed', true));
 }
 </script>

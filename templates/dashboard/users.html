@@ -5,17 +5,11 @@
 
 {% block content %}
 <style>
-    .search-bar { background: #fff; border-radius: 8px; padding: 1rem 1.5rem; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 1rem; display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
-    .search-bar input { padding: 0.5rem 0.8rem; border: 1px solid #dfe6e9; border-radius: 6px; font-size: 0.9rem; flex: 1; min-width: 200px; }
-    .search-bar input:focus { outline: none; border-color: #0984e3; }
-    .search-bar button { padding: 0.5rem 1rem; background: #0984e3; color: #fff; border: none; border-radius: 6px; cursor: pointer; }
-    .btn-sm { padding: 0.25rem 0.5rem; border-radius: 4px; border: none; font-size: 0.75rem; cursor: pointer; text-decoration: none; display: inline-block; }
-    .btn-outline { background: transparent; border: 1px solid #0984e3; color: #0984e3; }
-    .btn-outline:hover { background: #0984e3; color: #fff; }
-    .badge { display: inline-block; padding: 0.2rem 0.5rem; border-radius: 10px; font-size: 0.75rem; }
-    .badge.active { background: #55efc4; color: #00b894; }
-    .badge.inactive { background: #fab1a0; color: #d63031; }
-    .badge.verified { background: #74b9ff; color: #0984e3; }
+    .search-bar { background: var(--card); border-radius: var(--radius); border: 1px solid var(--border); padding: 1rem 1.5rem; box-shadow: var(--shadow); margin-bottom: 1.25rem; display: flex; gap: 0.5rem; align-items: center; }
+    .search-bar input { padding: 0.5rem 0.8rem; border: 1px solid var(--border); border-radius: 6px; font-size: 0.9rem; flex: 1; min-width: 200px; }
+    .search-bar input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(36,99,235,0.08); }
+    .search-bar button { padding: 0.5rem 1rem; background: var(--accent); color: #fff; border: none; border-radius: 6px; cursor: pointer; font-weight: 500; }
+    .search-bar button:hover { background: var(--accent-hover); }
 </style>
 
 {% csrf_token %}
@@ -25,11 +19,12 @@
         <input type="text" name="q" placeholder="Search by username, email, phone, name..." value="{{ q }}" autofocus>
         <button type="submit">Search</button>
         {% if q %}
-        <a href="{% url 'dashboard_users' %}" style="padding:0.5rem 1rem;color:#636e72;text-decoration:none;">Clear</a>
+        <a href="{% url 'dashboard_users' %}" class="btn btn-sm btn-outline" style="text-decoration:none;align-self:center;">Clear</a>
         {% endif %}
     </form>
 </div>
 
+<div class="table-wrap">
 <table>
     <thead>
         <tr>
@@ -55,27 +50,25 @@
                 <span class="badge {% if u.is_active %}active{% else %}inactive{% endif %}">
                     {{ u.is_active|yesno:"Active,Blocked" }}
                 </span>
-                {% if u.is_verified %}
-                <span class="badge verified">Verified</span>
-                {% endif %}
             </td>
             <td>{{ u.date_joined|date:"M d, Y" }}</td>
-            <td><a href="{% url 'dashboard_user_detail' u.id %}" class="btn-sm btn-outline">View</a></td>
+            <td><a href="{% url 'dashboard_user_detail' u.id %}" class="btn btn-sm btn-outline">View</a></td>
         </tr>
         {% empty %}
         <tr><td colspan="8" class="empty">No users found.</td></tr>
         {% endfor %}
     </tbody>
 </table>
+</div>
 
 {% if is_paginated %}
 <div class="pagination">
     {% if page_obj.has_previous %}
-    <a href="?page={{ page_obj.previous_page_number }}{% if q %}&q={{ q }}{% endif %}">Previous</a>
+    <a href="?page={{ page_obj.previous_page_number }}{% if q %}&q={{ q }}{% endif %}">← Prev</a>
     {% endif %}
     <span>Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
     {% if page_obj.has_next %}
-    <a href="?page={{ page_obj.next_page_number }}{% if q %}&q={{ q }}{% endif %}">Next</a>
+    <a href="?page={{ page_obj.next_page_number }}{% if q %}&q={{ q }}{% endif %}">Next →</a>
     {% endif %}
 </div>
 {% endif %}

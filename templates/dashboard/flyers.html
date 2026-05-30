@@ -6,52 +6,17 @@
 {% block content %}
 <style>
     .flyer-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
-    .flyer-card { background: #fff; border-radius: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); overflow: hidden; position: relative; }
+    .flyer-card { background: var(--card); border-radius: var(--radius); border: 1px solid var(--border); box-shadow: var(--shadow); overflow: hidden; }
     .flyer-card .preview { width: 100%; height: 200px; object-fit: cover; display: block; cursor: pointer; }
     .flyer-card .body { padding: 1.25rem; }
     .flyer-card .body h3 { font-size: 1rem; margin-bottom: 0.3rem; }
-    .flyer-card .body .meta { font-size: 0.8rem; color: #636e72; margin-bottom: 0.5rem; }
+    .flyer-card .body .meta { font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.5rem; }
     .flyer-card .body .meta span { margin-right: 1rem; }
-    .flyer-card .actions { padding: 0.75rem 1.25rem; border-top: 1px solid #eee; display: flex; gap: 0.5rem; flex-wrap: wrap; }
-    .empty-state { background: #fff; border-radius: 10px; padding: 3rem; text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,0.1); grid-column: 1 / -1; }
-    .empty-state p { color: #636e72; margin-bottom: 1rem; }
-
-    .btn { display: inline-block; padding: 0.4rem 0.8rem; border-radius: 6px; border: none; font-size: 0.85rem; cursor: pointer; text-decoration: none; }
-    .btn-success { background: #00b894; color: #fff; }
-    .btn-success:hover { background: #00a381; }
-    .btn-primary { background: #0984e3; color: #fff; }
-    .btn-primary:hover { background: #0767b3; }
-    .btn-danger { background: #d63031; color: #fff; }
-    .btn-danger:hover { background: #b71c1c; }
-    .btn-outline { background: transparent; border: 1px solid #0984e3; color: #0984e3; }
-    .btn-outline:hover { background: #0984e3; color: #fff; }
-    .btn-sm { padding: 0.25rem 0.5rem; font-size: 0.75rem; }
-
-    .badge { display: inline-block; padding: 0.2rem 0.5rem; border-radius: 10px; font-size: 0.75rem; }
-    .badge.active { background: #55efc4; color: #00b894; }
-    .badge.inactive { background: #fab1a0; color: #d63031; }
-
-    .upload-bar { background: #fff; border-radius: 10px; padding: 1.25rem 1.5rem; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 1.5rem; display: flex; gap: 1rem; align-items: center; flex-wrap: wrap; }
-    .upload-bar input, .upload-bar select { padding: 0.4rem 0.6rem; border: 1px solid #dfe6e9; border-radius: 4px; font-size: 0.85rem; }
-    .upload-bar input[type="file"] { padding: 0.3rem; }
-
-    .modal-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.6); z-index: 1000; justify-content: center; align-items: center; }
-    .modal-overlay.active { display: flex; }
-    .modal-box { background: #fff; border-radius: 12px; padding: 2rem; max-width: 480px; width: 90%; position: relative; }
-    .modal-box h3 { margin-bottom: 1rem; }
-    .modal-close { position: absolute; top: 1rem; right: 1rem; background: none; border: none; font-size: 1.5rem; cursor: pointer; color: #636e72; }
-    .form-group { margin-bottom: 0.8rem; }
-    .form-group label { display: block; font-size: 0.85rem; color: #636e72; margin-bottom: 0.3rem; }
-    .form-group input, .form-group select { width: 100%; padding: 0.5rem; border: 1px solid #dfe6e9; border-radius: 4px; font-size: 0.9rem; }
-
-    .lightbox { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.9); z-index: 2000; justify-content: center; align-items: center; }
-    .lightbox.active { display: flex; }
-    .lightbox img { max-width: 90%; max-height: 90%; border-radius: 8px; }
-    .lightbox-close { position: fixed; top: 1rem; right: 1.5rem; color: #fff; font-size: 2rem; cursor: pointer; background: none; border: none; z-index: 2001; }
-
-    .toast { visibility: hidden; min-width: 250px; background: #00b894; color: #fff; text-align: center; border-radius: 8px; padding: 1rem; position: fixed; bottom: 2rem; left: 50%; transform: translateX(-50%); z-index: 3000; opacity: 0; transition: opacity 0.3s, visibility 0.3s; }
-    .toast.show { visibility: visible; opacity: 1; }
-    .toast.error { background: #d63031; }
+    .flyer-card .actions { padding: 0.75rem 1.25rem; border-top: 1px solid var(--border); display: flex; gap: 0.5rem; flex-wrap: wrap; }
+    .upload-bar { background: var(--card); border-radius: var(--radius); padding: 1.25rem 1.5rem; border: 1px solid var(--border); box-shadow: var(--shadow); margin-bottom: 1.5rem; display: flex; gap: 1rem; align-items: center; flex-wrap: wrap; }
+    .upload-bar input, .upload-bar select { padding: 0.4rem 0.6rem; border: 1px solid var(--border); border-radius: 6px; font-size: 0.85rem; }
+    .upload-bar input:focus, .upload-bar select:focus { outline: none; border-color: var(--accent); }
+    @media (max-width: 600px) { .flyer-grid { grid-template-columns: 1fr; } }
 </style>
 
 {% csrf_token %}
@@ -81,7 +46,7 @@
                 <span class="badge {% if flyer.is_active %}active{% else %}inactive{% endif %}" id="badge-{{ flyer.id }}">{{ flyer.is_active|yesno:"Active,Inactive" }}</span>
             </div>
             {% if flyer.link_url %}
-            <div class="meta">Link: <a href="{{ flyer.link_url }}" target="_blank" style="color:#0984e3;">{{ flyer.link_url|truncatechars:40 }}</a></div>
+            <div class="meta">Link: <a href="{{ flyer.link_url }}" target="_blank" style="color:var(--accent);">{{ flyer.link_url|truncatechars:40 }}</a></div>
             {% endif %}
             <div class="meta">{{ flyer.created_at|date:"M d, Y" }}</div>
         </div>
@@ -92,9 +57,7 @@
         </div>
     </div>
     {% empty %}
-    <div class="empty-state">
-        <p>No flyers yet. Upload your first flyer above.</p>
-    </div>
+    <div class="empty" style="grid-column:1/-1;">No flyers yet. Upload your first flyer above.</div>
     {% endfor %}
 </div>
 
@@ -103,6 +66,7 @@
     <div class="modal-box">
         <button class="modal-close" onclick="closeModal('editModal')">&times;</button>
         <h3>Edit Flyer</h3>
+        <p class="sub">Update flyer details</p>
         <form id="editForm">
             <input type="hidden" id="editId">
             <div class="form-group">
@@ -122,61 +86,28 @@
     </div>
 </div>
 
-<div class="lightbox" id="lightbox" onclick="closeLightbox()">
+<div class="lightbox" id="lightbox">
     <button class="lightbox-close" onclick="closeLightbox()">&times;</button>
     <img id="lightboxImg" src="" alt="Full size">
 </div>
 
-<div id="toast" class="toast"></div>
-
 <script>
-function showToast(msg, isError) {
-    const t = document.getElementById('toast');
-    t.textContent = msg;
-    t.className = 'toast' + (isError ? ' error' : '') + ' show';
-    setTimeout(() => t.className = 'toast', 3000);
-}
-
-function getCSRF() { return document.querySelector('[name=csrfmiddlewaretoken]')?.value || ''; }
-
-function openLightbox(url) {
-    document.getElementById('lightboxImg').src = url;
-    document.getElementById('lightbox').classList.add('active');
-}
-function closeLightbox() {
-    document.getElementById('lightbox').classList.remove('active');
-}
-
-function openModal(id) { document.getElementById(id).classList.add('active'); }
-function closeModal(id) { document.getElementById(id).classList.remove('active'); }
-
 function uploadFlyer() {
     const title = document.getElementById('newTitle').value.trim();
     const position = document.getElementById('newPosition').value;
     const link = document.getElementById('newLink').value.trim();
     const fileInput = document.getElementById('newImage');
     const file = fileInput.files[0];
-
     if (!title) { showToast('Title is required', true); return; }
     if (!file) { showToast('Select an image', true); return; }
-
     const form = new FormData();
     form.append('csrfmiddlewaretoken', getCSRF());
     form.append('title', title);
     form.append('position', position);
     form.append('link_url', link);
     form.append('image', file);
-
-    fetch('/dashboard/flyers/upload/', {
-        method: 'POST', body: form,
-        headers: { 'X-Requested-With': 'XMLHttpRequest' }
-    })
-    .then(r => r.json())
-    .then(d => {
-        if (d.error) { showToast(d.error, true); return; }
-        showToast(d.message);
-        setTimeout(() => location.reload(), 800);
-    })
+    fetch('/dashboard/flyers/upload/', { method: 'POST', body: form, headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+    .then(r => r.json()).then(d => { if (d.error) { showToast(d.error, true); return; } showToast(d.message); setTimeout(() => location.reload(), 800); })
     .catch(() => showToast('Upload failed', true));
 }
 
@@ -196,42 +127,22 @@ document.getElementById('editForm')?.addEventListener('submit', function(e) {
     const link = document.getElementById('editLink').value.trim();
     const fileInput = document.getElementById('editImage');
     const file = fileInput.files[0];
-
     if (!title) { showToast('Title is required', true); return; }
-
     const form = new FormData();
     form.append('csrfmiddlewaretoken', getCSRF());
     form.append('title', title);
     form.append('link_url', link);
     if (file) form.append('image', file);
-
-    fetch('/dashboard/flyers/' + id + '/update/', {
-        method: 'POST', body: form,
-        headers: { 'X-Requested-With': 'XMLHttpRequest' }
-    })
-    .then(r => r.json())
-    .then(d => {
-        if (d.error) { showToast(d.error, true); return; }
-        closeModal('editModal');
-        showToast(d.message);
-        setTimeout(() => location.reload(), 800);
-    })
+    fetch('/dashboard/flyers/' + id + '/update/', { method: 'POST', body: form, headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+    .then(r => r.json()).then(d => { if (d.error) { showToast(d.error, true); return; } closeModal('editModal'); showToast(d.message); setTimeout(() => location.reload(), 800); })
     .catch(() => showToast('Update failed', true));
 });
 
 function toggleFlyer(id) {
     const form = new FormData();
     form.append('csrfmiddlewaretoken', getCSRF());
-    fetch('/dashboard/flyers/' + id + '/toggle/', {
-        method: 'POST', body: form,
-        headers: { 'X-Requested-With': 'XMLHttpRequest' }
-    })
-    .then(r => r.json())
-    .then(d => {
-        if (d.error) { showToast(d.error, true); return; }
-        showToast(d.message);
-        setTimeout(() => location.reload(), 800);
-    })
+    fetch('/dashboard/flyers/' + id + '/toggle/', { method: 'POST', body: form, headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+    .then(r => r.json()).then(d => { if (d.error) { showToast(d.error, true); return; } showToast(d.message); setTimeout(() => location.reload(), 800); })
     .catch(() => showToast('Toggle failed', true));
 }
 
@@ -239,23 +150,9 @@ function deleteFlyer(id) {
     if (!confirm('Delete this flyer?')) return;
     const form = new FormData();
     form.append('csrfmiddlewaretoken', getCSRF());
-    fetch('/dashboard/flyers/' + id + '/delete/', {
-        method: 'POST', body: form,
-        headers: { 'X-Requested-With': 'XMLHttpRequest' }
-    })
-    .then(r => r.json())
-    .then(d => {
-        if (d.error) { showToast(d.error, true); return; }
-        showToast(d.message);
-        setTimeout(() => location.reload(), 800);
-    })
+    fetch('/dashboard/flyers/' + id + '/delete/', { method: 'POST', body: form, headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+    .then(r => r.json()).then(d => { if (d.error) { showToast(d.error, true); return; } showToast(d.message); setTimeout(() => location.reload(), 800); })
     .catch(() => showToast('Delete failed', true));
 }
-
-document.querySelectorAll('.modal-overlay').forEach(el => {
-    el.addEventListener('click', function(e) {
-        if (e.target === this) this.classList.remove('active');
-    });
-});
 </script>
 {% endblock %}

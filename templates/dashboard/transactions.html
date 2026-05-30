@@ -12,6 +12,7 @@
     <a href="{% url 'dashboard_transactions' %}?status=processing" {% if active_status == 'processing' %}class="active"{% endif %}>Processing</a>
 </div>
 
+<div class="table-wrap">
 <table>
     <thead>
         <tr>
@@ -38,15 +39,16 @@
         {% endfor %}
     </tbody>
 </table>
+</div>
 
 {% if is_paginated %}
 <div class="pagination">
     {% if page_obj.has_previous %}
-    <a href="?page={{ page_obj.previous_page_number }}{% if active_status %}&status={{ active_status }}{% endif %}">Previous</a>
+    <a href="?page={{ page_obj.previous_page_number }}{% if active_status %}&status={{ active_status }}{% endif %}">← Prev</a>
     {% endif %}
     <span>Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
     {% if page_obj.has_next %}
-    <a href="?page={{ page_obj.next_page_number }}{% if active_status %}&status={{ active_status }}{% endif %}">Next</a>
+    <a href="?page={{ page_obj.next_page_number }}{% if active_status %}&status={{ active_status }}{% endif %}">Next →</a>
     {% endif %}
 </div>
 {% endif %}
