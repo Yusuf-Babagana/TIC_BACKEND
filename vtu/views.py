@@ -136,7 +136,9 @@ class UnifiedPurchaseView(APIView):
                         user=user,
                         trans_type=TRANSACTION_TYPE_MAP[category],
                         amount=cost,
-                        reference=result.get("reference") or result.get("transaction_id", "N/A"),
+                        reference=result.get("reference")
+                                  or result.get("transaction_id")
+                                  or f"SUCCESS-{uuid.uuid4().hex[:12].upper()}",
                         status="SUCCESSFUL",
                     )
                     return Response(result, status=status.HTTP_200_OK)
@@ -230,7 +232,9 @@ def _execute_purchase(user, category, cost, provider_payload):
                     user=user,
                     trans_type=TRANSACTION_TYPE_MAP[category],
                     amount=cost,
-                    reference=result.get("reference") or result.get("transaction_id", "N/A"),
+                    reference=result.get("reference")
+                              or result.get("transaction_id")
+                              or f"SUCCESS-{uuid.uuid4().hex[:12].upper()}",
                     status="SUCCESSFUL",
                 )
                 return Response(result, status=status.HTTP_200_OK)
