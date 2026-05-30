@@ -10,9 +10,13 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.views.generic import ListView, TemplateView
 from django.views import View
 
+from django.contrib.auth import get_user_model
+
 from fashion.models import CustomStyleRequest, Notification, UserMeasurement
 from vtu.models import DataPlan, Provider
 from wallet.models import Transaction, Wallet
+
+UserModel = get_user_model()
 
 
 class DashboardLoginView(View):
@@ -227,8 +231,7 @@ class DashboardPlanSyncView(LoginRequiredMixin, View):
 
 from datetime import date, datetime
 
-from django.contrib.auth import get_user_model
-from django.db.models import Q, Sum
+from django.db.models import Q
 from django.utils import timezone
 
 
@@ -380,3 +383,65 @@ class DashboardWalletAdjustView(LoginRequiredMixin, View):
             return JsonResponse({"error": "No wallet for this user"}, status=404)
         except Exception as e:
             return JsonResponse({"error": str(e)}, status=500)
+
+
+class DashboardUserListView(LoginRequiredMixin, ListView):
+    template_name = "dashboard/users.html"
+    login_url = "/dashboard/login/"
+    context_object_name = "users"
+    paginate_by = 50
+
+    def get_queryset(self):
+        q = self.request.GET.get("q", "").strip()
+        qs = UserModel.objects.all().order_by("-date_joined")
+        if q:
+            qs = qs.filter(
+                Q(username__icontains=q)
+                | Q(email__icontains=q)
+                | Q(phone_number__icontains=q)
+                | Q(first_name__icontains=q)
+                | Q(last_name__icontains=q)
+            )
+        return qs
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["q"] = self.request.GET.get("q", "")
+        return context
+
+
+class DashboardUserDetailView(LoginRequiredMixin, TemplateView):
+    template_name = "dashboard/user_detail.html"
+    login_url = "/dashboard/login/"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        user = get_object_or_404(UserModel, pk=kwargs["pk"])
+        context["profile"] = user
+
+        wallet = Wallet.objects.filter(user=user).first()
+        context["wallet"] = wallet
+
+        context["transactions"] = Transaction.objects.filter(user=user).order_by(
+            "-created_at"
+        )[:50]
+
+        context["tailoring_orders"] = CustomStyleRequest.objects.filter(
+            user=user
+        ).order_by("-created_at")[:20]
+        return context
+
+
+class DashboardUserToggleActiveView(LoginRequiredMixin, View):
+    login_url = "/dashboard/login/"
+
+    def post(self, request, pk):
+        user = get_object_or_404(UserModel, pk=pk)
+        if user == request.user:
+            return JsonResponse({"error": "Cannot block yourself"}, status=400)
+        user.is_active = not user.is_active
+        user.save(update_fields=["is_active"])
+        return JsonResponse({
+            "is_active": user.is_active,
+            "message": f"User {'unblocked' if user.is_active else 'blocked'}",
+        })

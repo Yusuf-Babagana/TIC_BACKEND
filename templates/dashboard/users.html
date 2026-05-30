@@ -1,0 +1,82 @@
+{% extends "dashboard/base.html" %}
+
+{% block title %}Users - TIC Admin{% endblock %}
+{% block heading %}Users{% endblock %}
+
+{% block content %}
+<style>
+    .search-bar { background: #fff; border-radius: 8px; padding: 1rem 1.5rem; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 1rem; display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
+    .search-bar input { padding: 0.5rem 0.8rem; border: 1px solid #dfe6e9; border-radius: 6px; font-size: 0.9rem; flex: 1; min-width: 200px; }
+    .search-bar input:focus { outline: none; border-color: #0984e3; }
+    .search-bar button { padding: 0.5rem 1rem; background: #0984e3; color: #fff; border: none; border-radius: 6px; cursor: pointer; }
+    .btn-sm { padding: 0.25rem 0.5rem; border-radius: 4px; border: none; font-size: 0.75rem; cursor: pointer; text-decoration: none; display: inline-block; }
+    .btn-outline { background: transparent; border: 1px solid #0984e3; color: #0984e3; }
+    .btn-outline:hover { background: #0984e3; color: #fff; }
+    .badge { display: inline-block; padding: 0.2rem 0.5rem; border-radius: 10px; font-size: 0.75rem; }
+    .badge.active { background: #55efc4; color: #00b894; }
+    .badge.inactive { background: #fab1a0; color: #d63031; }
+    .badge.verified { background: #74b9ff; color: #0984e3; }
+</style>
+
+{% csrf_token %}
+
+<div class="search-bar">
+    <form method="get" style="display:flex;gap:0.5rem;flex:1;">
+        <input type="text" name="q" placeholder="Search by username, email, phone, name..." value="{{ q }}" autofocus>
+        <button type="submit">Search</button>
+        {% if q %}
+        <a href="{% url 'dashboard_users' %}" style="padding:0.5rem 1rem;color:#636e72;text-decoration:none;">Clear</a>
+        {% endif %}
+    </form>
+</div>
+
+<table>
+    <thead>
+        <tr>
+            <th>ID</th>
+            <th>Username</th>
+            <th>Email</th>
+            <th>Phone</th>
+            <th>Balance</th>
+            <th>Status</th>
+            <th>Joined</th>
+            <th></th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for u in users %}
+        <tr>
+            <td>{{ u.id }}</td>
+            <td>{{ u.username }}</td>
+            <td>{{ u.email }}</td>
+            <td>{{ u.phone_number|default:"—" }}</td>
+            <td>{% if u.wallet %}₦{{ u.wallet.balance|floatformat:2 }}{% else %}—{% endif %}</td>
+            <td>
+                <span class="badge {% if u.is_active %}active{% else %}inactive{% endif %}">
+                    {{ u.is_active|yesno:"Active,Blocked" }}
+                </span>
+                {% if u.is_verified %}
+                <span class="badge verified">Verified</span>
+                {% endif %}
+            </td>
+            <td>{{ u.date_joined|date:"M d, Y" }}</td>
+            <td><a href="{% url 'dashboard_user_detail' u.id %}" class="btn-sm btn-outline">View</a></td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="8" class="empty">No users found.</td></tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+{% if is_paginated %}
+<div class="pagination">
+    {% if page_obj.has_previous %}
+    <a href="?page={{ page_obj.previous_page_number }}{% if q %}&q={{ q }}{% endif %}">Previous</a>
+    {% endif %}
+    <span>Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+    {% if page_obj.has_next %}
+    <a href="?page={{ page_obj.next_page_number }}{% if q %}&q={{ q }}{% endif %}">Next</a>
+    {% endif %}
+</div>
+{% endif %}
+{% endblock %}

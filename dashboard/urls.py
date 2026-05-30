@@ -12,6 +12,9 @@ from .views import (
     DashboardTailoringListView,
     DashboardTailoringUpdateView,
     DashboardTransactionListView,
+    DashboardUserDetailView,
+    DashboardUserListView,
+    DashboardUserToggleActiveView,
     DashboardWalletAdjustView,
 )
 
@@ -40,4 +43,11 @@ urlpatterns = [
     ),
     path("finance/", DashboardFinanceView.as_view(), name="dashboard_finance"),
     path("finance/adjust/", DashboardWalletAdjustView.as_view(), name="dashboard_wallet_adjust"),
+    path("users/", DashboardUserListView.as_view(), name="dashboard_users"),
+    path("users/<int:pk>/", DashboardUserDetailView.as_view(), name="dashboard_user_detail"),
+    path(
+        "users/<int:pk>/toggle-active/",
+        DashboardUserToggleActiveView.as_view(),
+        name="dashboard_user_toggle",
+    ),
 ]
