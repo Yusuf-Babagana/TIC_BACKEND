@@ -13,7 +13,7 @@ from django.views import View
 from django.contrib.auth import get_user_model
 
 from fashion.models import CustomStyleRequest, Notification, UserMeasurement
-from marketing.models import Flyer as FlyerModel
+from marketing.models import Flyer as FlyerModel, MarketingGallery as MarketingGalleryModel
 from vtu.models import DataPlan, Provider
 from wallet.models import Transaction, Wallet
 
@@ -516,3 +516,33 @@ class DashboardFlyerToggleView(LoginRequiredMixin, View):
         flyer.is_active = not flyer.is_active
         flyer.save(update_fields=["is_active"])
         return JsonResponse({"is_active": flyer.is_active, "message": "Flyer updated"})
+
+
+class DashboardGalleryView(LoginRequiredMixin, TemplateView):
+    template_name = "dashboard/gallery.html"
+    login_url = "/dashboard/login/"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["images"] = MarketingGalleryModel.objects.all()
+        return context
+
+
+class DashboardGalleryUploadView(LoginRequiredMixin, View):
+    login_url = "/dashboard/login/"
+
+    def post(self, request):
+        image = request.FILES.get("image")
+        if not image:
+            return JsonResponse({"error": "Image file is required"}, status=400)
+        MarketingGalleryModel.objects.create(image=image)
+        return JsonResponse({"message": "Image uploaded"})
+
+
+class DashboardGalleryDeleteView(LoginRequiredMixin, View):
+    login_url = "/dashboard/login/"
+
+    def post(self, request, pk):
+        img = get_object_or_404(MarketingGalleryModel, pk=pk)
+        img.delete()
+        return JsonResponse({"message": "Image deleted"})

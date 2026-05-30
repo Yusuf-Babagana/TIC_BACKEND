@@ -4,9 +4,11 @@ from .views import (
     FlyerListCreateView,
     FlyerRetrieveUpdateDeleteView,
     PublicFlyerListView,
+    marketing_gallery_list,
 )
 
 urlpatterns = [
+    path("gallery/", marketing_gallery_list, name="marketing-gallery"),
     path("flyers/", PublicFlyerListView.as_view(), name="public-flyers"),
     path(
         "admin/flyers/",

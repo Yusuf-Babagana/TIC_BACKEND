@@ -1,6 +1,12 @@
 from rest_framework import serializers
 
-from .models import Flyer
+from .models import Flyer, MarketingGallery
+
+
+class MarketingGallerySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = MarketingGallery
+        fields = ["id", "image", "created_at"]
 
 
 class FlyerSerializer(serializers.ModelSerializer):

@@ -1,0 +1,126 @@
+{% extends "dashboard/base.html" %}
+
+{% block title %}Marketing Gallery - TIC Admin{% endblock %}
+{% block heading %}Marketing Gallery{% endblock %}
+
+{% block content %}
+<style>
+    .gallery-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 1rem; }
+    .gallery-card { background: #fff; border-radius: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); overflow: hidden; position: relative; }
+    .gallery-card .thumb { width: 100%; height: 180px; object-fit: cover; display: block; cursor: pointer; }
+    .gallery-card .info { padding: 0.75rem; display: flex; justify-content: space-between; align-items: center; }
+    .gallery-card .info .date { font-size: 0.8rem; color: #636e72; }
+    .empty-state { background: #fff; border-radius: 10px; padding: 3rem; text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,0.1); grid-column: 1 / -1; }
+    .empty-state p { color: #636e72; margin-bottom: 1rem; }
+
+    .upload-bar { background: #fff; border-radius: 10px; padding: 1.25rem 1.5rem; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 1.5rem; display: flex; gap: 1rem; align-items: center; }
+    .upload-bar input[type="file"] { padding: 0.3rem; }
+
+    .btn { display: inline-block; padding: 0.4rem 0.8rem; border-radius: 6px; border: none; font-size: 0.85rem; cursor: pointer; text-decoration: none; }
+    .btn-success { background: #00b894; color: #fff; }
+    .btn-success:hover { background: #00a381; }
+    .btn-danger { background: #d63031; color: #fff; }
+    .btn-danger:hover { background: #b71c1c; }
+    .btn-sm { padding: 0.25rem 0.5rem; font-size: 0.75rem; }
+
+    .lightbox { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.9); z-index: 2000; justify-content: center; align-items: center; }
+    .lightbox.active { display: flex; }
+    .lightbox img { max-width: 90%; max-height: 90%; border-radius: 8px; }
+    .lightbox-close { position: fixed; top: 1rem; right: 1.5rem; color: #fff; font-size: 2rem; cursor: pointer; background: none; border: none; z-index: 2001; }
+
+    .toast { visibility: hidden; min-width: 250px; background: #00b894; color: #fff; text-align: center; border-radius: 8px; padding: 1rem; position: fixed; bottom: 2rem; left: 50%; transform: translateX(-50%); z-index: 3000; opacity: 0; transition: opacity 0.3s, visibility 0.3s; }
+    .toast.show { visibility: visible; opacity: 1; }
+    .toast.error { background: #d63031; }
+</style>
+
+{% csrf_token %}
+
+<div class="upload-bar">
+    <span style="font-weight:600;font-size:0.9rem;">📷 Upload Gallery Image</span>
+    <input type="file" id="newImage" accept="image/*">
+    <button class="btn btn-success" onclick="uploadImage()">Upload</button>
+</div>
+
+<div class="gallery-grid">
+    {% for img in images %}
+    <div class="gallery-card" id="gallery-{{ img.id }}">
+        {% if img.image %}
+        <img src="{{ img.image.url }}" class="thumb" onclick="openLightbox('{{ img.image.url }}')" alt="Gallery {{ img.id }}">
+        {% endif %}
+        <div class="info">
+            <span class="date">{{ img.created_at|date:"M d, Y" }}</span>
+            <button class="btn btn-sm btn-danger" onclick="deleteImage({{ img.id }})">Delete</button>
+        </div>
+    </div>
+    {% empty %}
+    <div class="empty-state">
+        <p>No gallery images yet. Upload your first image above.</p>
+    </div>
+    {% endfor %}
+</div>
+
+<div class="lightbox" id="lightbox" onclick="closeLightbox()">
+    <button class="lightbox-close" onclick="closeLightbox()">&times;</button>
+    <img id="lightboxImg" src="" alt="Full size">
+</div>
+
+<div id="toast" class="toast"></div>
+
+<script>
+function showToast(msg, isError) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.className = 'toast' + (isError ? ' error' : '') + ' show';
+    setTimeout(() => t.className = 'toast', 3000);
+}
+
+function getCSRF() { return document.querySelector('[name=csrfmiddlewaretoken]')?.value || ''; }
+
+function openLightbox(url) {
+    document.getElementById('lightboxImg').src = url;
+    document.getElementById('lightbox').classList.add('active');
+}
+function closeLightbox() {
+    document.getElementById('lightbox').classList.remove('active');
+}
+
+function uploadImage() {
+    const fileInput = document.getElementById('newImage');
+    const file = fileInput.files[0];
+    if (!file) { showToast('Select an image', true); return; }
+
+    const form = new FormData();
+    form.append('csrfmiddlewaretoken', getCSRF());
+    form.append('image', file);
+
+    fetch('/dashboard/gallery/upload/', {
+        method: 'POST', body: form,
+        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    })
+    .then(r => r.json())
+    .then(d => {
+        if (d.error) { showToast(d.error, true); return; }
+        showToast(d.message);
+        setTimeout(() => location.reload(), 800);
+    })
+    .catch(() => showToast('Upload failed', true));
+}
+
+function deleteImage(id) {
+    if (!confirm('Delete this image?')) return;
+    const form = new FormData();
+    form.append('csrfmiddlewaretoken', getCSRF());
+    fetch('/dashboard/gallery/' + id + '/delete/', {
+        method: 'POST', body: form,
+        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    })
+    .then(r => r.json())
+    .then(d => {
+        if (d.error) { showToast(d.error, true); return; }
+        showToast(d.message);
+        setTimeout(() => location.reload(), 800);
+    })
+    .catch(() => showToast('Delete failed', true));
+}
+</script>
+{% endblock %}
