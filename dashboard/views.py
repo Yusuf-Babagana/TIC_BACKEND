@@ -132,6 +132,8 @@ class DashboardTailoringListView(LoginRequiredMixin, ListView):
             m.user_id: m
             for m in UserMeasurement.objects.filter(user_id__in=user_ids)
         }
+        for o in orders:
+            o.measurement = measurements_map.get(o.user_id)
         context["measurements_map"] = measurements_map
         return context
 
