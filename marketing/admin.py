@@ -5,7 +5,8 @@ from .models import Flyer, MarketingGallery
 
 @admin.register(MarketingGallery)
 class MarketingGalleryAdmin(admin.ModelAdmin):
-    list_display = ("id", "image", "created_at")
+    list_display = ("id", "title", "price", "image", "created_at")
+    search_fields = ("title",)
 
 
 @admin.register(Flyer)

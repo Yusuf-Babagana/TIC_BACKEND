@@ -6,7 +6,7 @@ from .models import Flyer, MarketingGallery
 class MarketingGallerySerializer(serializers.ModelSerializer):
     class Meta:
         model = MarketingGallery
-        fields = ["id", "image", "created_at"]
+        fields = ["id", "title", "price", "description", "image", "created_at"]
 
 
 class FlyerSerializer(serializers.ModelSerializer):

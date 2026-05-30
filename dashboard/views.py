@@ -1,5 +1,6 @@
 import io
 import sys
+from decimal import Decimal
 
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.mixins import LoginRequiredMixin
@@ -532,11 +533,49 @@ class DashboardGalleryUploadView(LoginRequiredMixin, View):
     login_url = "/dashboard/login/"
 
     def post(self, request):
+        title = request.POST.get("title", "").strip()
+        price = request.POST.get("price", "").strip()
+        description = request.POST.get("description", "").strip()
         image = request.FILES.get("image")
+
+        if not title:
+            return JsonResponse({"error": "Title is required"}, status=400)
+        if not price:
+            return JsonResponse({"error": "Price is required"}, status=400)
         if not image:
             return JsonResponse({"error": "Image file is required"}, status=400)
-        MarketingGalleryModel.objects.create(image=image)
-        return JsonResponse({"message": "Image uploaded"})
+
+        try:
+            price = Decimal(price)
+        except Exception:
+            return JsonResponse({"error": "Invalid price"}, status=400)
+
+        MarketingGalleryModel.objects.create(title=title, price=price, description=description, image=image)
+        return JsonResponse({"message": "Gallery item added"})
+
+
+class DashboardGalleryUpdateView(LoginRequiredMixin, View):
+    login_url = "/dashboard/login/"
+
+    def post(self, request, pk):
+        item = get_object_or_404(MarketingGalleryModel, pk=pk)
+        title = request.POST.get("title", "").strip()
+        price = request.POST.get("price", "").strip()
+        description = request.POST.get("description", "").strip()
+        image = request.FILES.get("image")
+
+        if title:
+            item.title = title
+        if price:
+            try:
+                item.price = Decimal(price)
+            except Exception:
+                return JsonResponse({"error": "Invalid price"}, status=400)
+        item.description = description
+        if image:
+            item.image = image
+        item.save(update_fields=["title", "price", "description", "image"] if image else ["title", "price", "description"])
+        return JsonResponse({"message": "Gallery item updated"})
 
 
 class DashboardGalleryDeleteView(LoginRequiredMixin, View):

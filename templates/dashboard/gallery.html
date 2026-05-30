@@ -1,27 +1,48 @@
 {% extends "dashboard/base.html" %}
 
-{% block title %}Marketing Gallery - TIC Admin{% endblock %}
-{% block heading %}Marketing Gallery{% endblock %}
+{% block title %}Market Gallery - TIC Admin{% endblock %}
+{% block heading %}Market Gallery{% endblock %}
 
 {% block content %}
 <style>
-    .gallery-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 1rem; }
-    .gallery-card { background: #fff; border-radius: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); overflow: hidden; position: relative; }
-    .gallery-card .thumb { width: 100%; height: 180px; object-fit: cover; display: block; cursor: pointer; }
-    .gallery-card .info { padding: 0.75rem; display: flex; justify-content: space-between; align-items: center; }
-    .gallery-card .info .date { font-size: 0.8rem; color: #636e72; }
-    .empty-state { background: #fff; border-radius: 10px; padding: 3rem; text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,0.1); grid-column: 1 / -1; }
+    .gallery-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 1.25rem; }
+    .product-card { background: #fff; border-radius: 12px; box-shadow: 0 1px 4px rgba(0,0,0,0.1); overflow: hidden; display: flex; flex-direction: column; }
+    .product-card .thumb { width: 100%; height: 200px; object-fit: cover; display: block; cursor: pointer; }
+    .product-card .body { padding: 1rem; flex: 1; display: flex; flex-direction: column; }
+    .product-card .body h3 { font-size: 1rem; margin-bottom: 0.25rem; }
+    .product-card .body .price { font-size: 1.1rem; font-weight: 700; color: #0984e3; margin-bottom: 0.4rem; }
+    .product-card .body .desc { font-size: 0.8rem; color: #636e72; margin-bottom: 0.6rem; flex: 1; }
+    .product-card .body .meta { font-size: 0.75rem; color: #b2bec3; margin-bottom: 0.75rem; }
+    .product-card .actions { padding: 0.75rem 1rem; border-top: 1px solid #eee; display: flex; gap: 0.5rem; }
+
+    .empty-state { background: #fff; border-radius: 12px; padding: 3rem; text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,0.1); grid-column: 1 / -1; }
     .empty-state p { color: #636e72; margin-bottom: 1rem; }
 
-    .upload-bar { background: #fff; border-radius: 10px; padding: 1.25rem 1.5rem; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 1.5rem; display: flex; gap: 1rem; align-items: center; }
+    .upload-bar { background: #fff; border-radius: 12px; padding: 1.25rem 1.5rem; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 1.5rem; display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap; }
+    .upload-bar input, .upload-bar textarea { padding: 0.4rem 0.6rem; border: 1px solid #dfe6e9; border-radius: 4px; font-size: 0.85rem; }
+    .upload-bar textarea { resize: vertical; min-height: 36px; }
     .upload-bar input[type="file"] { padding: 0.3rem; }
 
     .btn { display: inline-block; padding: 0.4rem 0.8rem; border-radius: 6px; border: none; font-size: 0.85rem; cursor: pointer; text-decoration: none; }
     .btn-success { background: #00b894; color: #fff; }
     .btn-success:hover { background: #00a381; }
+    .btn-primary { background: #0984e3; color: #fff; }
+    .btn-primary:hover { background: #0767b3; }
     .btn-danger { background: #d63031; color: #fff; }
     .btn-danger:hover { background: #b71c1c; }
+    .btn-outline { background: transparent; border: 1px solid #0984e3; color: #0984e3; }
+    .btn-outline:hover { background: #0984e3; color: #fff; }
     .btn-sm { padding: 0.25rem 0.5rem; font-size: 0.75rem; }
+
+    .modal-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.6); z-index: 1000; justify-content: center; align-items: center; }
+    .modal-overlay.active { display: flex; }
+    .modal-box { background: #fff; border-radius: 12px; padding: 2rem; max-width: 520px; width: 90%; position: relative; max-height: 90vh; overflow-y: auto; }
+    .modal-box h3 { margin-bottom: 1rem; }
+    .modal-close { position: absolute; top: 1rem; right: 1rem; background: none; border: none; font-size: 1.5rem; cursor: pointer; color: #636e72; }
+    .form-group { margin-bottom: 0.8rem; }
+    .form-group label { display: block; font-size: 0.85rem; color: #636e72; margin-bottom: 0.3rem; }
+    .form-group input, .form-group textarea, .form-group select { width: 100%; padding: 0.5rem; border: 1px solid #dfe6e9; border-radius: 4px; font-size: 0.9rem; }
+    .form-group textarea { resize: vertical; min-height: 60px; }
 
     .lightbox { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.9); z-index: 2000; justify-content: center; align-items: center; }
     .lightbox.active { display: flex; }
@@ -36,27 +57,66 @@
 {% csrf_token %}
 
 <div class="upload-bar">
-    <span style="font-weight:600;font-size:0.9rem;">📷 Upload Gallery Image</span>
+    <span style="font-weight:600;font-size:0.9rem;">➕ Add Product</span>
+    <input type="text" id="newTitle" placeholder="Product title" style="flex:1;min-width:140px;">
+    <input type="number" id="newPrice" placeholder="Price (₦)" step="0.01" style="width:110px;">
+    <input type="text" id="newDesc" placeholder="Short description" style="flex:1;min-width:140px;">
     <input type="file" id="newImage" accept="image/*">
-    <button class="btn btn-success" onclick="uploadImage()">Upload</button>
+    <button class="btn btn-success" onclick="uploadItem()">Add</button>
 </div>
 
 <div class="gallery-grid">
-    {% for img in images %}
-    <div class="gallery-card" id="gallery-{{ img.id }}">
-        {% if img.image %}
-        <img src="{{ img.image.url }}" class="thumb" onclick="openLightbox('{{ img.image.url }}')" alt="Gallery {{ img.id }}">
+    {% for item in images %}
+    <div class="product-card" id="item-{{ item.id }}">
+        {% if item.image %}
+        <img src="{{ item.image.url }}" class="thumb" onclick="openLightbox('{{ item.image.url }}')" alt="{{ item.title }}">
         {% endif %}
-        <div class="info">
-            <span class="date">{{ img.created_at|date:"M d, Y" }}</span>
-            <button class="btn btn-sm btn-danger" onclick="deleteImage({{ img.id }})">Delete</button>
+        <div class="body">
+            <h3>{{ item.title }}</h3>
+            <div class="price">₦{{ item.price|floatformat:2 }}</div>
+            {% if item.description %}
+            <div class="desc">{{ item.description|truncatechars:80 }}</div>
+            {% endif %}
+            <div class="meta">{{ item.created_at|date:"M d, Y" }}</div>
+        </div>
+        <div class="actions">
+            <button class="btn btn-sm btn-primary" onclick="editItem({{ item.id }})">Edit</button>
+            <button class="btn btn-sm btn-danger" onclick="deleteItem({{ item.id }})">Delete</button>
         </div>
     </div>
     {% empty %}
     <div class="empty-state">
-        <p>No gallery images yet. Upload your first image above.</p>
+        <p>No products yet. Add your first product above.</p>
     </div>
     {% endfor %}
+</div>
+
+<!-- Edit Modal -->
+<div class="modal-overlay" id="editModal">
+    <div class="modal-box">
+        <button class="modal-close" onclick="closeModal('editModal')">&times;</button>
+        <h3>Edit Product</h3>
+        <form id="editForm">
+            <input type="hidden" id="editId">
+            <div class="form-group">
+                <label>Title</label>
+                <input type="text" id="editTitle" required>
+            </div>
+            <div class="form-group">
+                <label>Price (₦)</label>
+                <input type="number" id="editPrice" step="0.01" required>
+            </div>
+            <div class="form-group">
+                <label>Description</label>
+                <textarea id="editDesc" rows="3"></textarea>
+            </div>
+            <div class="form-group">
+                <label>New Image (leave blank to keep current)</label>
+                <input type="file" id="editImage" accept="image/*">
+            </div>
+            <button type="submit" class="btn btn-primary" style="width:100%;padding:0.6rem;">Save</button>
+        </form>
+    </div>
 </div>
 
 <div class="lightbox" id="lightbox" onclick="closeLightbox()">
@@ -84,13 +144,25 @@ function closeLightbox() {
     document.getElementById('lightbox').classList.remove('active');
 }
 
-function uploadImage() {
+function openModal(id) { document.getElementById(id).classList.add('active'); }
+function closeModal(id) { document.getElementById(id).classList.remove('active'); }
+
+function uploadItem() {
+    const title = document.getElementById('newTitle').value.trim();
+    const price = document.getElementById('newPrice').value.trim();
+    const desc = document.getElementById('newDesc').value.trim();
     const fileInput = document.getElementById('newImage');
     const file = fileInput.files[0];
+
+    if (!title) { showToast('Title is required', true); return; }
+    if (!price) { showToast('Price is required', true); return; }
     if (!file) { showToast('Select an image', true); return; }
 
     const form = new FormData();
     form.append('csrfmiddlewaretoken', getCSRF());
+    form.append('title', title);
+    form.append('price', price);
+    form.append('description', desc);
     form.append('image', file);
 
     fetch('/dashboard/gallery/upload/', {
@@ -106,8 +178,52 @@ function uploadImage() {
     .catch(() => showToast('Upload failed', true));
 }
 
-function deleteImage(id) {
-    if (!confirm('Delete this image?')) return;
+function editItem(id) {
+    const card = document.getElementById('item-' + id);
+    document.getElementById('editId').value = id;
+    document.getElementById('editTitle').value = card.querySelector('h3').textContent;
+    document.getElementById('editPrice').value = card.querySelector('.price').textContent.replace('₦', '').trim();
+    const descEl = card.querySelector('.desc');
+    document.getElementById('editDesc').value = descEl ? descEl.textContent.trim() : '';
+    document.getElementById('editImage').value = '';
+    openModal('editModal');
+}
+
+document.getElementById('editForm')?.addEventListener('submit', function(e) {
+    e.preventDefault();
+    const id = document.getElementById('editId').value;
+    const title = document.getElementById('editTitle').value.trim();
+    const price = document.getElementById('editPrice').value.trim();
+    const desc = document.getElementById('editDesc').value.trim();
+    const fileInput = document.getElementById('editImage');
+    const file = fileInput.files[0];
+
+    if (!title) { showToast('Title is required', true); return; }
+    if (!price) { showToast('Price is required', true); return; }
+
+    const form = new FormData();
+    form.append('csrfmiddlewaretoken', getCSRF());
+    form.append('title', title);
+    form.append('price', price);
+    form.append('description', desc);
+    if (file) form.append('image', file);
+
+    fetch('/dashboard/gallery/' + id + '/update/', {
+        method: 'POST', body: form,
+        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    })
+    .then(r => r.json())
+    .then(d => {
+        if (d.error) { showToast(d.error, true); return; }
+        closeModal('editModal');
+        showToast(d.message);
+        setTimeout(() => location.reload(), 800);
+    })
+    .catch(() => showToast('Update failed', true));
+});
+
+function deleteItem(id) {
+    if (!confirm('Delete this product?')) return;
     const form = new FormData();
     form.append('csrfmiddlewaretoken', getCSRF());
     fetch('/dashboard/gallery/' + id + '/delete/', {
@@ -122,5 +238,11 @@ function deleteImage(id) {
     })
     .catch(() => showToast('Delete failed', true));
 }
+
+document.querySelectorAll('.modal-overlay').forEach(el => {
+    el.addEventListener('click', function(e) {
+        if (e.target === this) this.classList.remove('active');
+    });
+});
 </script>
 {% endblock %}
