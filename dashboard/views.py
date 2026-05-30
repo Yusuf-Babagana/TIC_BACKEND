@@ -1,5 +1,9 @@
+import io
+import sys
+
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.mixins import LoginRequiredMixin
+from django.core.management import call_command
 from django.db.models import Prefetch, Sum
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -175,3 +179,47 @@ class DashboardTailoringUpdateView(LoginRequiredMixin, View):
         )
 
         return JsonResponse({"status": new_status, "message": "Order updated"})
+
+
+class DashboardPlanToggleView(LoginRequiredMixin, View):
+    login_url = "/dashboard/login/"
+
+    def post(self, request, pk):
+        plan = get_object_or_404(DataPlan, pk=pk)
+        plan.is_active = not plan.is_active
+        plan.save(update_fields=["is_active"])
+        return JsonResponse({"is_active": plan.is_active, "message": "Plan updated"})
+
+
+class DashboardPlanPriceUpdateView(LoginRequiredMixin, View):
+    login_url = "/dashboard/login/"
+
+    def post(self, request, pk):
+        plan = get_object_or_404(DataPlan, pk=pk)
+        price = request.POST.get("selling_price")
+        if price is None:
+            return JsonResponse({"error": "selling_price required"}, status=400)
+        try:
+            plan.selling_price = price
+            plan.save(update_fields=["selling_price"])
+            return JsonResponse({
+                "selling_price": str(plan.selling_price),
+                "margin": str(plan.selling_price - (plan.api_price or 0)),
+                "message": "Price updated",
+            })
+        except (ValueError, TypeError) as e:
+            return JsonResponse({"error": str(e)}, status=400)
+
+
+class DashboardPlanSyncView(LoginRequiredMixin, View):
+    login_url = "/dashboard/login/"
+
+    def post(self, request):
+        margin = request.POST.get("margin", "10")
+        buf = io.StringIO()
+        try:
+            call_command("sync_plans", f"--margin={margin}", stdout=buf)
+            output = buf.getvalue()
+            return JsonResponse({"message": "Sync completed", "output": output})
+        except Exception as e:
+            return JsonResponse({"error": str(e)}, status=500)
