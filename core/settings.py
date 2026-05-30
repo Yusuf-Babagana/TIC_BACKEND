@@ -120,12 +120,11 @@ CHEAPDATAHUB_API_KEY = _raw_key
 if not CHEAPDATAHUB_API_KEY:
     import warnings
     warnings.warn("CHEAPDATAHUB_API_KEY is empty — VTU purchases will fail at runtime.")
-elif not CHEAPDATAHUB_API_KEY.startswith("prod_pk_"):
+elif len(CHEAPDATAHUB_API_KEY) < 20:
     import warnings
     warnings.warn(
-        f"CHEAPDATAHUB_API_KEY does not start with expected prefix 'prod_pk_'. "
-        f"Received prefix: '{CHEAPDATAHUB_API_KEY[:8]}...' "
-        f"(first 8 chars shown). Verify your .env value."
+        f"CHEAPDATAHUB_API_KEY seems too short ({len(CHEAPDATAHUB_API_KEY)} chars). "
+        f"Expected a 40-char hex key."
     )
 
 # ------------------------------------------------------------------

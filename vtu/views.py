@@ -216,6 +216,10 @@ def _execute_purchase(user, category, cost, provider_payload):
                 )
 
             result = CheapDataHubService.purchase(category, provider_payload)
+            logger.info(
+                "VTU response: category=%s payload=%s result=%s",
+                category, provider_payload, result,
+            )
 
             provider_status = result.get("status")
             if provider_status in ("true", True):
