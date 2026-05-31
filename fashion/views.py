@@ -60,8 +60,15 @@ class MyOrdersListView(generics.ListAPIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        # Only return orders belonging to the logged-in user
         return CustomStyleRequest.objects.filter(user=self.request.user).order_by('-created_at')
+
+
+class MyOrderDetailView(generics.RetrieveAPIView):
+    serializer_class = CustomStyleRequestSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        return CustomStyleRequest.objects.filter(user=self.request.user)
 
 class CustomStyleRequestAdminView(generics.RetrieveUpdateAPIView):
     queryset = CustomStyleRequest.objects.all().order_by("-id")

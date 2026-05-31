@@ -89,6 +89,10 @@ class CheckoutView(APIView):
 
     @transaction.atomic
     def post(self, request):
+        ser = CheckoutSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        delivery_address = ser.validated_data.get("delivery_address", "")
+
         cart = get_or_create_cart(request.user)
         items = list(cart.items.select_related("gallery_item").all())
 
@@ -108,6 +112,7 @@ class CheckoutView(APIView):
             reference=reference,
             total=total,
             status="pending",
+            delivery_address=delivery_address,
         )
 
         for item in items:
@@ -129,7 +134,6 @@ class CheckoutView(APIView):
             trans_type="UTILITY",
             amount=total,
             status="SUCCESSFUL",
-            description=f"Gallery order #{order.id}",
         )
 
         cart.items.all().delete()

@@ -8,33 +8,33 @@
     <style>
         *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
         :root {
-            --primary: #2E1065;
-            --primary-muted: #6D28D9;
-            --primary-light: #8B5CF6;
-            --accent: #D97706;
-            --accent-light: #F59E0B;
-            --promo: #B45309;
-            --bg: #F8FAFC;
+            --primary: #1E1040;
+            --primary-muted: #4C1D95;
+            --primary-light: #7C3AED;
+            --accent: #B45309;
+            --accent-light: #D97706;
+            --promo: #92400E;
+            --bg: #F1F5F9;
             --card: #FFFFFF;
             --border: #E2E8F0;
-            --highlight: #F1F5F9;
+            --highlight: #F8FAFC;
             --text: #0F172A;
             --text-secondary: #64748B;
             --text-tertiary: #94A3B8;
             --success: #059669;
             --danger: #EF4444;
-            --warning: #D97706;
-            --sidebar: #2E1065;
-            --sidebar-hover: #4C1D95;
-            --sidebar-active: #6D28D9;
-            --sidebar-text: #A78BFA;
+            --warning: #B45309;
+            --sidebar: #1E1040;
+            --sidebar-hover: #2D1B5E;
+            --sidebar-active: #4C1D95;
+            --sidebar-text: #8B7CB8;
             --sidebar-text-active: #FFFFFF;
             --radius: 10px;
             --shadow: 0 1px 2px rgba(0,0,0,0.04), 0 1px 3px rgba(0,0,0,0.06);
             --shadow-md: 0 4px 6px rgba(0,0,0,0.05), 0 2px 4px rgba(0,0,0,0.04);
             --shadow-lg: 0 10px 25px rgba(0,0,0,0.06), 0 4px 10px rgba(0,0,0,0.04);
-            --gradient-primary: linear-gradient(135deg, #2E1065, #4C1D95, #6D28D9);
-            --gradient-promo: linear-gradient(135deg, #92400E, #B45309, #D97706);
+            --gradient-primary: linear-gradient(180deg, #1E1040, #2D1B5E);
+            --gradient-promo: linear-gradient(135deg, #78350F, #92400E, #B45309);
         }
         html { font-size: 15px; }
         body {
@@ -48,10 +48,9 @@
         /* ── Sidebar ── */
         .sidebar {
             position: fixed; left: 0; top: 0; bottom: 0; width: 250px;
-            background: var(--gradient-primary); color: #fff; z-index: 100;
+            background: var(--sidebar); color: #fff; z-index: 100;
             display: flex; flex-direction: column;
             transition: transform .25s ease;
-            box-shadow: 2px 0 12px rgba(46,16,101,0.15);
         }
         .sidebar-brand {
             padding: 1.5rem 1.25rem 1.15rem;
@@ -60,10 +59,9 @@
         }
         .sidebar-brand .logo {
             width: 38px; height: 38px;
-            background: var(--gradient-promo);
+            background: var(--accent);
             border-radius: 10px; display: flex; align-items: center; justify-content: center;
             font-weight: 800; font-size: 1.1rem; color: #fff; flex-shrink: 0;
-            box-shadow: 0 2px 8px rgba(217,119,6,0.3);
         }
         .sidebar-brand .brand-text { line-height: 1.25; }
         .sidebar-brand .brand-text strong { display: block; font-size: 1rem; font-weight: 700; letter-spacing: -0.01em; }
@@ -83,7 +81,7 @@
             transition: all .15s ease;
         }
         .sidebar a:hover { background: var(--sidebar-hover); color: #fff; }
-        .sidebar a.active { background: var(--sidebar-active); color: var(--sidebar-text-active); box-shadow: 0 2px 8px rgba(109,40,217,0.3); }
+        .sidebar a.active { background: var(--sidebar-active); color: var(--sidebar-text-active); }
         .sidebar a svg { width: 18px; height: 18px; flex-shrink: 0; opacity: 0.7; }
         .sidebar a.active svg { opacity: 1; }
         .sidebar a.logout { margin-top: auto; color: #FCA5A5; }
@@ -145,10 +143,10 @@
             display: flex; align-items: center; justify-content: center;
             flex-shrink: 0; font-size: 1.25rem;
         }
-        .kpi-card .icon.deep-purple { background: #EDE9FE; color: #6D28D9; }
-        .kpi-card .icon.amber { background: #FEF3C7; color: #D97706; }
-        .kpi-card .icon.emerald { background: #D1FAE5; color: #059669; }
-        .kpi-card .icon.rose { background: #FFE4E6; color: #EF4444; }
+        .kpi-card .icon.deep-purple { background: #EEF2FF; color: #4C1D95; }
+        .kpi-card .icon.amber { background: #FFFBEB; color: #B45309; }
+        .kpi-card .icon.emerald { background: #ECFDF5; color: #059669; }
+        .kpi-card .icon.rose { background: #FFF1F2; color: #EF4444; }
         .kpi-card .kpi-body { flex: 1; min-width: 0; }
         .kpi-card .kpi-body .value { font-size: 1.7rem; font-weight: 800; line-height: 1.2; letter-spacing: -0.02em; }
         .kpi-card .kpi-body .label { font-size: 0.8rem; color: var(--text-secondary); font-weight: 500; margin-top: 0.1rem; }

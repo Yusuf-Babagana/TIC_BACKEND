@@ -17,7 +17,7 @@ class CartItemAdmin(admin.ModelAdmin):
 class OrderAdmin(admin.ModelAdmin):
     list_display = ("id", "user", "reference", "total", "status", "created_at")
     list_filter = ("status",)
-    search_fields = ("reference", "user__username")
+    search_fields = ("reference", "user__username", "delivery_address")
 
 
 @admin.register(OrderItem)

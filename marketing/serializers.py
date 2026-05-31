@@ -38,7 +38,7 @@ class OrderSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Order
-        fields = ["id", "reference", "total", "status", "items", "created_at"]
+        fields = ["id", "reference", "total", "status", "delivery_address", "items", "created_at"]
 
 
 class AddToCartSerializer(serializers.Serializer):
@@ -47,7 +47,7 @@ class AddToCartSerializer(serializers.Serializer):
 
 
 class CheckoutSerializer(serializers.Serializer):
-    pass
+    delivery_address = serializers.CharField(required=False, allow_blank=True)
 
 
 class FlyerSerializer(serializers.ModelSerializer):

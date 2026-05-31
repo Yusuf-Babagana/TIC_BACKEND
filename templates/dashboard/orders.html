@@ -10,9 +10,9 @@
     .order-header .ref { font-weight: 600; font-size: 0.95rem; }
     .order-header .ref small { font-weight: 400; color: var(--text-secondary); }
     .order-body { padding: 1rem 1.25rem; }
-    .order-item { display: flex; align-items: center; gap: 1rem; padding: 0.5rem 0; border-bottom: 1px solid #f0f2f5; }
+    .order-item { display: flex; align-items: center; gap: 1rem; padding: 0.5rem 0; border-bottom: 1px solid var(--highlight); }
     .order-item:last-child { border-bottom: none; }
-    .order-item img { width: 48px; height: 48px; border-radius: 6px; object-fit: cover; background: #f0f2f5; }
+    .order-item img { width: 48px; height: 48px; border-radius: 6px; object-fit: cover; background: var(--highlight); }
     .order-item .info { flex: 1; }
     .order-item .info .title { font-size: 0.9rem; }
     .order-item .info .meta { font-size: 0.8rem; color: var(--text-secondary); }
@@ -21,6 +21,8 @@
     .order-footer .total { font-weight: 700; font-size: 1rem; color: var(--accent); }
     .order-footer .user { font-size: 0.85rem; color: var(--text-secondary); }
     select.status-select { padding: 0.3rem 0.5rem; border: 1px solid var(--border); border-radius: 6px; font-size: 0.8rem; }
+    .address-box { margin: 0.5rem 1.25rem 0.75rem; padding: 1rem; background: var(--highlight); border-radius: 8px; border-left: 3px solid var(--primary-muted); font-size: 0.85rem; line-height: 1.5; }
+    .address-box .addr-label { font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-tertiary); margin-bottom: 0.25rem; }
 </style>
 
 <div class="filter-bar">
@@ -49,6 +51,12 @@
             <div class="subtotal">₦{{ item.total|floatformat:2 }}</div>
         </div>
         {% endfor %}
+        {% if order.delivery_address %}
+        <div class="address-box">
+            <div class="addr-label">Delivery Address</div>
+            {{ order.delivery_address|linebreaksbr }}
+        </div>
+        {% endif %}
     </div>
     <div class="order-footer">
         <div>
