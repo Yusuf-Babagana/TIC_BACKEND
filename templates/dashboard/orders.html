@@ -1,7 +1,7 @@
 {% extends "dashboard/base.html" %}
 
-{% block title %}Gallery Orders - TIC Admin{% endblock %}
-{% block heading %}Gallery Orders{% endblock %}
+{% block title %}Market Orders - TIC Admin{% endblock %}
+{% block heading %}Market Orders{% endblock %}
 
 {% block content %}
 <style>
@@ -20,9 +20,9 @@
     .order-footer { padding: 0.75rem 1.25rem; border-top: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem; }
     .order-footer .total { font-weight: 700; font-size: 1rem; color: var(--accent); }
     .order-footer .user { font-size: 0.85rem; color: var(--text-secondary); }
-    select.status-select { padding: 0.3rem 0.5rem; border: 1px solid var(--border); border-radius: 6px; font-size: 0.8rem; }
     .address-box { margin: 0.5rem 1.25rem 0.75rem; padding: 1rem; background: var(--highlight); border-radius: 8px; border-left: 3px solid var(--primary-muted); font-size: 0.85rem; line-height: 1.5; }
     .address-box .addr-label { font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-tertiary); margin-bottom: 0.25rem; }
+    .actions { display: flex; gap: 0.4rem; flex-wrap: wrap; }
 </style>
 
 <div class="filter-bar">
@@ -64,13 +64,28 @@
             <span style="margin:0 0.5rem;color:var(--border);">|</span>
             <span style="font-size:0.8rem;color:var(--text-secondary);">{{ order.created_at|date:"M d, Y H:i" }}</span>
         </div>
-        <div style="display:flex;align-items:center;gap:0.5rem;">
+        <div style="display:flex;align-items:center;gap:0.75rem;">
             <span class="total">₦{{ order.total|floatformat:2 }}</span>
-            <select class="status-select" onchange="updateStatus({{ order.id }}, this.value)">
-                {% for code, label in status_choices %}
-                <option value="{{ code }}" {% if order.status == code %}selected{% endif %}>{{ label }}</option>
-                {% endfor %}
-            </select>
+            <div class="actions">
+                {% if order.status == 'pending' %}
+                <button class="btn btn-sm btn-primary" onclick="updateStatus({{ order.id }}, 'sewing')">Start Sewing</button>
+                <button class="btn btn-sm btn-danger" onclick="updateStatus({{ order.id }}, 'cancelled')">Cancel</button>
+
+                {% elif order.status == 'sewing' %}
+                <button class="btn btn-sm btn-warning" onclick="updateStatus({{ order.id }}, 'ready')">Mark Ready</button>
+                <button class="btn btn-sm btn-danger" onclick="updateStatus({{ order.id }}, 'cancelled')">Cancel</button>
+
+                {% elif order.status == 'ready' %}
+                <button class="btn btn-sm btn-success" onclick="updateStatus({{ order.id }}, 'delivered')">Mark Delivered</button>
+                <button class="btn btn-sm btn-danger" onclick="updateStatus({{ order.id }}, 'cancelled')">Cancel</button>
+
+                {% elif order.status == 'delivered' %}
+                <span style="font-size:0.85rem;color:var(--success);font-weight:600;">✓ Complete</span>
+
+                {% elif order.status == 'cancelled' %}
+                <span style="font-size:0.85rem;color:var(--danger);font-weight:600;">✕ Cancelled</span>
+                {% endif %}
+            </div>
         </div>
     </div>
 </div>
@@ -92,11 +107,12 @@
 
 <script>
 function updateStatus(id, status) {
+    if (status === 'cancelled' && !confirm('Cancel this order?')) return;
     const form = new FormData();
     form.append('csrfmiddlewaretoken', getCSRF());
     form.append('status', status);
     fetch('/dashboard/orders/' + id + '/update/', { method: 'POST', body: form, headers: { 'X-Requested-With': 'XMLHttpRequest' } })
-    .then(r => r.json()).then(d => { if (d.error) { alert(d.error); return; } location.reload(); });
+    .then(r => r.json()).then(d => { if (d.error) { alert(d.error); return; } showToast(d.message || 'Order updated'); setTimeout(() => location.reload(), 500); });
 }
 </script>
 {% endblock %}
