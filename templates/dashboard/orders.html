@@ -68,14 +68,14 @@
             <span class="total">₦{{ order.total|floatformat:2 }}</span>
             <div class="actions">
                 {% if order.status == 'pending' %}
-                <button class="btn btn-sm btn-primary" onclick="updateStatus({{ order.id }}, 'sewing')">Start Sewing</button>
+                <button class="btn btn-sm btn-primary" onclick="updateStatus({{ order.id }}, 'processing')">Process Order</button>
                 <button class="btn btn-sm btn-danger" onclick="updateStatus({{ order.id }}, 'cancelled')">Cancel</button>
 
-                {% elif order.status == 'sewing' %}
-                <button class="btn btn-sm btn-warning" onclick="updateStatus({{ order.id }}, 'ready')">Mark Ready</button>
+                {% elif order.status == 'processing' %}
+                <button class="btn btn-sm btn-warning" onclick="updateStatus({{ order.id }}, 'shipped')">Mark Shipped</button>
                 <button class="btn btn-sm btn-danger" onclick="updateStatus({{ order.id }}, 'cancelled')">Cancel</button>
 
-                {% elif order.status == 'ready' %}
+                {% elif order.status == 'shipped' %}
                 <button class="btn btn-sm btn-success" onclick="updateStatus({{ order.id }}, 'delivered')">Mark Delivered</button>
                 <button class="btn btn-sm btn-danger" onclick="updateStatus({{ order.id }}, 'cancelled')">Cancel</button>
 

@@ -30,8 +30,8 @@ class CartItem(models.Model):
 class Order(models.Model):
     STATUS_CHOICES = [
         ("pending", "Pending"),
-        ("sewing", "Sewing"),
-        ("ready", "Ready"),
+        ("processing", "Processing"),
+        ("shipped", "Shipped"),
         ("delivered", "Delivered"),
         ("cancelled", "Cancelled"),
     ]
