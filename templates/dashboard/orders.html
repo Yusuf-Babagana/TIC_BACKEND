@@ -4,6 +4,7 @@
 {% block heading %}Market Orders{% endblock %}
 
 {% block content %}
+{% csrf_token %}
 <style>
     .order-card { background: var(--card); border-radius: var(--radius); border: 1px solid var(--border); box-shadow: var(--shadow); margin-bottom: 1rem; overflow: hidden; }
     .order-header { padding: 1rem 1.25rem; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); flex-wrap: wrap; gap: 0.5rem; }
@@ -112,7 +113,12 @@ function updateStatus(id, status) {
     form.append('csrfmiddlewaretoken', getCSRF());
     form.append('status', status);
     fetch('/dashboard/orders/' + id + '/update/', { method: 'POST', body: form, headers: { 'X-Requested-With': 'XMLHttpRequest' } })
-    .then(r => r.json()).then(d => { if (d.error) { alert(d.error); return; } showToast(d.message || 'Order updated'); setTimeout(() => location.reload(), 500); });
+    .then(r => r.json()).then(d => {
+        if (d.error) { showToast(d.error, true); return; }
+        showToast(d.message || 'Order updated');
+        setTimeout(() => location.reload(), 500);
+    })
+    .catch(e => showToast('Request failed: ' + e.message, true));
 }
 </script>
 {% endblock %}
