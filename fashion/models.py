@@ -47,6 +47,7 @@ class CustomStyleRequest(models.Model):
     reference_image = models.ImageField(upload_to='custom_requests/')
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
     price_quote = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    delivery_address = models.TextField(blank=True, default="")
     created_at = models.DateTimeField(auto_now_add=True)
 
 

@@ -24,9 +24,8 @@ class UserMeasurementSerializer(serializers.ModelSerializer):
 class CustomStyleRequestSerializer(serializers.ModelSerializer):
     class Meta:
         model = CustomStyleRequest
-        # Added 'user' to fields and read_only_fields for professional tracking
-        fields = ['id', 'user', 'description', 'reference_image', 'status', 'price_quote', 'created_at']
-        read_only_fields = ['user', 'status', 'price_quote'] # Only admin can change these
+        fields = ['id', 'user', 'description', 'reference_image', 'status', 'price_quote', 'delivery_address', 'created_at']
+        read_only_fields = ['user', 'status', 'price_quote']
 
 class CustomStyleRequestUpdateSerializer(serializers.ModelSerializer):
     class Meta:

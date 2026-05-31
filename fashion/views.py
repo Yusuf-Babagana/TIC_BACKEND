@@ -85,6 +85,7 @@ class CustomTailoringView(APIView):
         user = request.user
         description = request.data.get("description")
         reference_image = request.FILES.get("reference_image")
+        delivery_address = request.data.get("delivery_address", "")
 
         if not description:
             return Response(
@@ -96,6 +97,7 @@ class CustomTailoringView(APIView):
             user=user,
             description=description,
             reference_image=reference_image,
+            delivery_address=delivery_address,
         )
 
         serializer = CustomStyleRequestSerializer(style_request)

@@ -31,6 +31,7 @@
             <th>Image</th>
             <th>Status</th>
             <th>Amount (₦)</th>
+            <th>Delivery Address</th>
             <th>Actions</th>
             <th>Date</th>
         </tr>
@@ -54,6 +55,16 @@
             </td>
             <td><span class="badge {{ req.status }}">{{ req.get_status_display }}</span></td>
             <td>{% if req.price_quote %}{{ req.price_quote|floatformat:2 }}{% else %}—{% endif %}</td>
+            <td>
+                {% if req.delivery_address %}
+                <span style="font-size:0.8rem;">{{ req.delivery_address|truncatechars:30 }}</span>
+                {% if req.delivery_address|length > 30 %}
+                <button class="btn btn-sm btn-outline" onclick="showAddress({{ req.id }})" style="padding:0.15rem 0.4rem;font-size:0.7rem;">...</button>
+                {% endif %}
+                {% else %}
+                <span style="color:var(--text-tertiary);font-size:0.8rem;">—</span>
+                {% endif %}
+            </td>
             <td>
                 <button class="btn btn-sm btn-outline" onclick="showMeasurements({{ req.user_id }})" title="View measurements">📏</button>
 
@@ -81,7 +92,7 @@
         </tr>
         {% endwith %}
         {% empty %}
-        <tr><td colspan="7" class="empty">No tailoring orders found.</td></tr>
+        <tr><td colspan="8" class="empty">No tailoring orders found.</td></tr>
         {% endfor %}
     </tbody>
 </table>
@@ -143,12 +154,36 @@
     </div>
 </div>
 
+<!-- Address Modal -->
+<div class="modal-overlay" id="addressModal">
+    <div class="modal-box">
+        <button class="modal-close" onclick="closeModal('addressModal')">&times;</button>
+        <h3>Delivery Address</h3>
+        <p id="fullAddress" style="white-space:pre-wrap;color:var(--text-secondary);background:var(--highlight);padding:1rem;border-radius:8px;border-left:3px solid var(--primary-muted);"></p>
+    </div>
+</div>
+
 <div class="lightbox" id="lightbox">
     <button class="lightbox-close" onclick="closeLightbox()">&times;</button>
     <img id="lightboxImg" src="" alt="Full size reference">
 </div>
 
 <script>
+const addressData = {
+    {% for req in requests %}
+    {% if req.delivery_address %}
+    {{ req.id }}: `{{ req.delivery_address|escapejs }}`,
+    {% endif %}
+    {% endfor %}
+};
+
+function showAddress(orderId) {
+    const addr = addressData[orderId];
+    if (!addr) { showToast('No address on file', true); return; }
+    document.getElementById('fullAddress').textContent = addr;
+    openModal('addressModal');
+}
+
 const measurementsData = {
     {% for req in requests %}
     {% with m=req.measurement %}
