@@ -170,6 +170,33 @@ def marketing_gallery_list(request):
     return Response(serializer.data)
 
 
+class UserOrderSyncView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        from fashion.models import CustomStyleRequest
+        from fashion.serializers import CustomStyleRequestSerializer
+
+        gallery_orders = Order.objects.filter(user=request.user).prefetch_related("items")
+        tailoring_orders = CustomStyleRequest.objects.filter(user=request.user)
+
+        result = []
+
+        for o in gallery_orders:
+            ser = OrderSerializer(o).data
+            ser["type"] = "purchase"
+            result.append(ser)
+
+        for o in tailoring_orders:
+            ser = CustomStyleRequestSerializer(o).data
+            ser["type"] = "sewing"
+            result.append(ser)
+
+        result.sort(key=lambda x: x.get("created_at", ""), reverse=True)
+
+        return Response(result)
+
+
 class PublicFlyerListView(generics.ListAPIView):
     queryset = Flyer.objects.filter(is_active=True)
     serializer_class = PublicFlyerSerializer

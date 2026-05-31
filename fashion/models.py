@@ -39,7 +39,8 @@ class CustomStyleRequest(models.Model):
         ('paid', 'Payment Confirmed'),    # User paid from wallet
         ('cutting', 'Cutting Fabric'),    # Production started
         ('sewing', 'Sewing in Progress'), # Tailor is working
-        ('completed', 'Ready/Shipped'),   # Done
+        ('completed', 'Ready for Delivery'),  # Ready to deliver
+        ('delivered', 'Delivered'),       # Delivered to customer
     ]
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     description = models.TextField()

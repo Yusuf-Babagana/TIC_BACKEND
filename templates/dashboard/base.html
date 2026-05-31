@@ -180,6 +180,7 @@
         .badge.pending { background: #FEF3C7; color: #B45309; }
         .badge.accepted, .badge.SUCCESSFUL, .badge.paid, .badge.completed, .badge.delivered, .badge.active { background: #D1FAE5; color: #047857; }
         .badge.in_progress, .badge.processing, .badge.shipped, .badge.ready { background: #EDE9FE; color: #6D28D9; }
+        .badge.delivered { background: #D1FAE5; color: #047857; }
         .badge.FAILED, .badge.failed, .badge.cancelled, .badge.inactive { background: #FEE2E2; color: #B91C1C; }
         .badge.pending_payment { background: #FEF3C7; color: #B45309; }
         .badge.quoted { background: #EDE9FE; color: #6D28D9; }
@@ -391,7 +392,7 @@
             </a>
             <a href="{% url 'dashboard_orders' %}" {% if request.resolver_match.view_name == 'dashboard_orders' %}class="active"{% endif %}>
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
-                Orders
+                Market Orders
             </a>
             <a href="{% url 'dashboard_flyers' %}" {% if request.resolver_match.view_name == 'dashboard_flyers' %}class="active"{% endif %}>
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
@@ -413,7 +414,7 @@
             </a>
             <a href="{% url 'dashboard_tailoring' %}" {% if request.resolver_match.view_name == 'dashboard_tailoring' %}class="active"{% endif %}>
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.2 7.8l-7.7 7.7-4-4-5.7 5.7"/><path d="M12.5 5.5l7.7 7.7"/><line x1="4" y1="17" x2="9.5" y2="11.5"/></svg>
-                Tailoring
+                Sewing Orders
             </a>
             <div class="section-label" style="margin-top:0.5rem;"></div>
             <a href="{% url 'dashboard_logout' %}" class="logout">

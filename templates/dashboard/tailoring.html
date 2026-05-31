@@ -1,7 +1,7 @@
 {% extends "dashboard/base.html" %}
 
-{% block title %}Tailoring Orders - TIC Admin{% endblock %}
-{% block heading %}Tailoring Orders{% endblock %}
+{% block title %}Sewing Orders - TIC Admin{% endblock %}
+{% block heading %}Sewing Orders{% endblock %}
 
 {% block content %}
 <style>
@@ -70,7 +70,10 @@
                 <button class="btn btn-sm btn-warning" onclick="updateStatus({{ req.id }}, 'sewing')">In Progress</button>
 
                 {% elif req.status == 'sewing' %}
-                <button class="btn btn-sm btn-success" onclick="updateStatus({{ req.id }}, 'completed')">Ready</button>
+                <button class="btn btn-sm btn-success" onclick="updateStatus({{ req.id }}, 'completed')">Mark Ready</button>
+
+                {% elif req.status == 'completed' %}
+                <button class="btn btn-sm btn-primary" onclick="updateStatus({{ req.id }}, 'delivered')">Mark Delivered</button>
 
                 {% endif %}
             </td>

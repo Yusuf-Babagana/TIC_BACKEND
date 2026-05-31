@@ -178,6 +178,7 @@ class DashboardTailoringUpdateView(LoginRequiredMixin, View):
             "paid": ["cutting"],
             "cutting": ["sewing"],
             "sewing": ["completed"],
+            "completed": ["delivered"],
         }
 
         allowed = STATUS_FLOW.get(order.status, [])
