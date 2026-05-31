@@ -1,5 +1,6 @@
 import io
 import sys
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 
 from django.contrib.auth import authenticate, login, logout
@@ -56,25 +57,40 @@ class AdminDashboardView(LoginRequiredMixin, TemplateView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
+        today = timezone.now().date()
+        today_start = timezone.make_aware(datetime.combine(today, datetime.min.time()))
+        today_end = timezone.make_aware(datetime.combine(today, datetime.max.time()))
+
+        successful = Transaction.objects.filter(status="SUCCESSFUL")
 
         context["total_wallets"] = Wallet.objects.count()
         context["total_transactions"] = Transaction.objects.count()
-        context["total_revenue"] = (
-            Transaction.objects.filter(status="SUCCESSFUL").aggregate(
-                total=Sum("amount")
-            )["total"]
-            or 0
-        )
+        context["total_revenue"] = successful.aggregate(total=Sum("amount"))["total"] or 0
+        context["today_revenue"] = successful.filter(
+            created_at__range=(today_start, today_end)
+        ).aggregate(total=Sum("amount"))["total"] or 0
+
+        context["active_plans"] = DataPlan.objects.filter(is_active=True).count()
+        context["total_orders"] = OrderModel.objects.count()
+        context["pending_orders"] = OrderModel.objects.filter(status="pending").count()
+        context["total_users"] = UserModel.objects.filter(is_active=True).count()
 
         context["tailoring_requests"] = (
             CustomStyleRequest.objects.select_related("user")
             .order_by("-created_at")[:10]
         )
-        context["pending_requests"] = (
+        context["pending_tailoring"] = (
             CustomStyleRequest.objects.filter(status="pending").count()
         )
+        context["cutting_sewing"] = (
+            CustomStyleRequest.objects.filter(status__in=["cutting", "sewing"]).count()
+        )
 
-        context["active_plans"] = DataPlan.objects.filter(is_active=True).count()
+        context["recent_orders"] = (
+            OrderModel.objects.select_related("user")
+            .prefetch_related("items")
+            .order_by("-created_at")[:8]
+        )
 
         return context
 
@@ -157,10 +173,11 @@ class DashboardTailoringUpdateView(LoginRequiredMixin, View):
         price_quote = request.POST.get("price_quote")
 
         STATUS_FLOW = {
-            "pending": ["cutting"],
+            "pending": ["quoted"],
+            "quoted": ["cutting"],
+            "paid": ["cutting"],
             "cutting": ["sewing"],
             "sewing": ["completed"],
-            "paid": ["cutting"],
         }
 
         allowed = STATUS_FLOW.get(order.status, [])
@@ -173,10 +190,13 @@ class DashboardTailoringUpdateView(LoginRequiredMixin, View):
         old_status = order.status
         order.status = new_status
 
-        if new_status == "cutting" and price_quote:
-            order.price_quote = price_quote
+        if new_status == "quoted" and price_quote:
+            try:
+                order.price_quote = Decimal(price_quote)
+            except Exception:
+                return JsonResponse({"error": "Invalid price quote"}, status=400)
 
-        order.save(update_fields=["status", "price_quote"] if new_status == "cutting" and price_quote else ["status"])
+        order.save()
 
         Notification.objects.create(
             user=order.user,
@@ -230,8 +250,6 @@ class DashboardPlanSyncView(LoginRequiredMixin, View):
         except Exception as e:
             return JsonResponse({"error": str(e)}, status=500)
 
-
-from datetime import date, datetime
 
 from django.db.models import Q
 from django.utils import timezone

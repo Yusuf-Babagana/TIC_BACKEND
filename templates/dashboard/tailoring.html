@@ -58,16 +58,19 @@
                 <button class="btn btn-sm btn-outline" onclick="showMeasurements({{ req.user_id }})" title="View measurements">📏</button>
 
                 {% if req.status == 'pending' %}
-                <button class="btn btn-sm btn-primary" onclick="acceptOrder({{ req.id }})">Accept</button>
+                <button class="btn btn-sm btn-primary" onclick="acceptOrder({{ req.id }})">Set Price</button>
+
+                {% elif req.status == 'quoted' %}
+                <button class="btn btn-sm btn-primary" onclick="updateStatus({{ req.id }}, 'cutting')">Start Cutting</button>
+
+                {% elif req.status == 'paid' %}
+                <button class="btn btn-sm btn-primary" onclick="updateStatus({{ req.id }}, 'cutting')">Start Cutting</button>
 
                 {% elif req.status == 'cutting' %}
                 <button class="btn btn-sm btn-warning" onclick="updateStatus({{ req.id }}, 'sewing')">In Progress</button>
 
                 {% elif req.status == 'sewing' %}
                 <button class="btn btn-sm btn-success" onclick="updateStatus({{ req.id }}, 'completed')">Ready</button>
-
-                {% elif req.status == 'paid' %}
-                <button class="btn btn-sm btn-primary" onclick="updateStatus({{ req.id }}, 'cutting')">Start Cutting</button>
 
                 {% endif %}
             </td>
@@ -97,16 +100,16 @@
 <div class="modal-overlay" id="acceptModal">
     <div class="modal-box">
         <button class="modal-close" onclick="closeModal('acceptModal')">&times;</button>
-        <h3>Accept Order</h3>
-        <p class="sub">Set a price quote and start working</p>
+        <h3>Set Price Quote</h3>
+        <p class="sub">Set a price and notify the customer to make payment</p>
         <form id="acceptForm" method="post">
             {% csrf_token %}
-            <input type="hidden" name="status" value="cutting">
+            <input type="hidden" name="status" value="quoted">
             <div class="form-group">
                 <label>Price Quote (₦)</label>
                 <input type="number" name="price_quote" step="0.01" min="0" required>
             </div>
-            <button type="submit" class="btn btn-primary" style="width:100%;padding:0.6rem;">Accept & Start Cutting</button>
+            <button type="submit" class="btn btn-primary" style="width:100%;padding:0.6rem;">Save Price & Notify Customer</button>
         </form>
     </div>
 </div>

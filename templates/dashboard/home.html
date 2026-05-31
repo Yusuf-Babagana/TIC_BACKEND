@@ -34,8 +34,41 @@
             </svg>
         </div>
         <div class="kpi-body">
-            <div class="value" style="color:var(--accent);">{{ total_transactions }}</div>
-            <div class="label">Transactions</div>
+            <div class="value" style="color:var(--accent);">{{ today_revenue|floatformat:0 }}</div>
+            <div class="label">Today's Revenue</div>
+        </div>
+    </div>
+    <div class="kpi-card">
+        <div class="icon emerald">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:22px;height:22px;">
+                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>
+            </svg>
+        </div>
+        <div class="kpi-body">
+            <div class="value" style="color:var(--success);">{{ total_users }}</div>
+            <div class="label">Active Users</div>
+        </div>
+    </div>
+    <div class="kpi-card">
+        <div class="icon deep-purple">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:22px;height:22px;">
+                <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/>
+            </svg>
+        </div>
+        <div class="kpi-body">
+            <div class="value" style="color:var(--primary-muted);">{{ total_orders }}</div>
+            <div class="label">Gallery Orders</div>
+        </div>
+    </div>
+    <div class="kpi-card">
+        <div class="icon deep-purple">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:22px;height:22px;">
+                <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>
+            </svg>
+        </div>
+        <div class="kpi-body">
+            <div class="value" style="color:var(--primary-muted);">{{ pending_orders }}</div>
+            <div class="label">Pending Orders</div>
         </div>
     </div>
     <div class="kpi-card">
@@ -45,37 +78,90 @@
             </svg>
         </div>
         <div class="kpi-body">
-            <div class="value" style="color:var(--primary-muted);">{{ pending_requests }}</div>
+            <div class="value" style="color:var(--primary-muted);">{{ pending_tailoring }}</div>
             <div class="label">Pending Tailoring</div>
+        </div>
+    </div>
+    <div class="kpi-card">
+        <div class="icon amber">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:22px;height:22px;">
+                <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+            </svg>
+        </div>
+        <div class="kpi-body">
+            <div class="value" style="color:var(--accent);">{{ active_plans }}</div>
+            <div class="label">Active Plans</div>
+        </div>
+    </div>
+    <div class="kpi-card">
+        <div class="icon amber">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:22px;height:22px;">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+            </svg>
+        </div>
+        <div class="kpi-body">
+            <div class="value" style="color:var(--accent);">{{ cutting_sewing }}</div>
+            <div class="label">In Production</div>
         </div>
     </div>
 </div>
 
-<div class="section-card">
-    <h2>Recent Tailoring Requests</h2>
-    <div class="table-wrap">
-        <table>
-            <thead>
-                <tr>
-                    <th>User</th>
-                    <th>Description</th>
-                    <th>Status</th>
-                    <th>Date</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for req in tailoring_requests %}
-                <tr>
-                    <td>{{ req.user.username }}</td>
-                    <td>{{ req.description|truncatechars:40 }}</td>
-                    <td><span class="badge {{ req.status }}">{{ req.status|title }}</span></td>
-                    <td>{{ req.created_at|date:"M d, H:i" }}</td>
-                </tr>
-                {% empty %}
-                <tr><td colspan="4" class="empty">No tailoring requests yet.</td></tr>
-                {% endfor %}
-            </tbody>
-        </table>
+<div class="kpi-grid" style="grid-template-columns:1fr 1fr;">
+    <div class="section-card">
+        <h2>Recent Gallery Orders</h2>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>User</th>
+                        <th>Total</th>
+                        <th>Status</th>
+                        <th>Date</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for order in recent_orders %}
+                    <tr>
+                        <td>{{ order.id }}</td>
+                        <td>{{ order.user.username }}</td>
+                        <td>₦{{ order.total|floatformat:0 }}</td>
+                        <td><span class="badge {{ order.status }}">{{ order.get_status_display }}</span></td>
+                        <td>{{ order.created_at|date:"M d, H:i" }}</td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="5" class="empty">No orders yet.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    <div class="section-card">
+        <h2>Recent Tailoring Requests</h2>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>User</th>
+                        <th>Description</th>
+                        <th>Status</th>
+                        <th>Date</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for req in tailoring_requests %}
+                    <tr>
+                        <td>{{ req.user.username }}</td>
+                        <td>{{ req.description|truncatechars:40 }}</td>
+                        <td><span class="badge {{ req.status }}">{{ req.get_status_display }}</span></td>
+                        <td>{{ req.created_at|date:"M d, H:i" }}</td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="4" class="empty">No tailoring requests yet.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
     </div>
 </div>
 {% endblock %}
