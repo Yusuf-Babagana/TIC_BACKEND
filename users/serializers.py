@@ -7,15 +7,18 @@ from wallet.serializers import WalletSerializer
 
 
 class RegisterSerializer(serializers.ModelSerializer):
+    referral_code = serializers.CharField(write_only=True, required=False, allow_blank=True)
+
     class Meta:
         model = User
-        fields = ["phone_number", "email", "password", "username"]
+        fields = ["phone_number", "email", "password", "username", "referral_code"]
         extra_kwargs = {
             "password": {"write_only": True},
             "phone_number": {"required": False, "allow_blank": True},
         }
 
     def create(self, validated_data):
+        validated_data.pop("referral_code", None)
         validated_data["password"] = make_password(validated_data["password"])
         return super().create(validated_data)
 

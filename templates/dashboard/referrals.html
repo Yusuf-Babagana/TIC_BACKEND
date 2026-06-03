@@ -1,0 +1,86 @@
+{% extends "dashboard/base.html" %}
+
+{% block title %}Referrals - TIC Admin{% endblock %}
+{% block heading %}Referral System{% endblock %}
+
+{% block content %}
+<div class="kpi-grid">
+    <div class="kpi-card">
+        <div class="icon emerald">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:22px;height:22px;"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        </div>
+        <div class="kpi-body">
+            <div class="value" style="color:var(--success);">{{ total_referrals }}</div>
+            <div class="label">Total Referrals</div>
+        </div>
+    </div>
+    <div class="kpi-card">
+        <div class="icon deep-purple">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:22px;height:22px;"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+        </div>
+        <div class="kpi-body">
+            <div class="value" style="color:var(--primary-muted);">₦{{ total_bonus_paid|floatformat:0 }}</div>
+            <div class="label">Bonus Paid Out</div>
+        </div>
+    </div>
+    <div class="kpi-card">
+        <div class="icon amber">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:22px;height:22px;"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+        </div>
+        <div class="kpi-body">
+            <div class="value" style="color:var(--accent); display:flex;align-items:center;gap:0.5rem;">
+                ₦<input type="number" id="bonusInput" value="{{ bonus_amount|floatformat:0 }}" step="50" min="0" style="width:80px;padding:0.2rem 0.4rem;border:1px solid var(--border);border-radius:6px;font-size:1.1rem;font-weight:700;color:var(--accent);">
+                <button class="btn btn-sm btn-accent" onclick="updateBonus()">Save</button>
+            </div>
+            <div class="label">Bonus per Referral</div>
+        </div>
+    </div>
+</div>
+
+<div class="section-card">
+    <h2>Referral History</h2>
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th>Referrer</th>
+                    <th>Referred User</th>
+                    <th>Bonus</th>
+                    <th>Status</th>
+                    <th>Date</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for ref in referrals %}
+                <tr>
+                    <td>{{ ref.referrer.username }} ({{ ref.referrer.email }})</td>
+                    <td>{{ ref.referred.username }} ({{ ref.referred.email }})</td>
+                    <td>₦{{ bonus_amount|floatformat:0 }}</td>
+                    <td><span class="badge {% if ref.rewarded %}delivered{% else %}pending{% endif %}">{% if ref.rewarded %}Paid{% else %}Pending{% endif %}</span></td>
+                    <td>{{ ref.created_at|date:"M d, Y H:i" }}</td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="5" class="empty">No referrals yet.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+function updateBonus() {
+    const amount = document.getElementById('bonusInput').value;
+    if (!amount || amount <= 0) { showToast('Enter a valid amount', true); return; }
+    const form = new FormData();
+    form.append('csrfmiddlewaretoken', getCSRF());
+    form.append('bonus_amount', amount);
+    fetch('/dashboard/referrals/update-bonus/', { method: 'POST', body: form, headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+    .then(r => r.json()).then(d => {
+        if (d.error) { showToast(d.error, true); return; }
+        showToast(d.message);
+        setTimeout(() => location.reload(), 500);
+    })
+    .catch(e => showToast('Failed: ' + e.message, true));
+}
+</script>
+{% endblock %}

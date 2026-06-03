@@ -4,10 +4,11 @@ from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView
 from django.contrib.auth import get_user_model
+from django.utils import timezone
 
 from .serializers import RegisterSerializer, MyTokenObtainPairSerializer
 from .utils import generate_otp
-from wallet.models import Wallet
+from wallet.models import Transaction, Wallet
 from wallet.serializers import WalletSerializer
 
 User = get_user_model()
@@ -25,6 +26,31 @@ class RegisterView(generics.CreateAPIView):
         otp = generate_otp()
         user.otp_code = otp
         user.save(update_fields=["otp_code"])
+
+        referral_code = serializer.validated_data.get("referral_code", "")
+        if referral_code:
+            try:
+                from django.db import transaction as db_transaction
+                from .models import Referral, ReferralConfig
+
+                referrer = User.objects.get(referral_code=referral_code)
+                with db_transaction.atomic():
+                    Referral.objects.create(referrer=referrer, referred=user)
+                    bonus = ReferralConfig.get_bonus()
+                    wallet = Wallet.objects.select_for_update().get(user=referrer)
+                    wallet.balance += bonus
+                    wallet.save(update_fields=["balance"])
+                    Transaction.objects.create(
+                        user=referrer,
+                        trans_type="DEPOSIT",
+                        amount=bonus,
+                        reference=f"REF-{referrer.id}-{user.id}-{timezone.now().strftime('%Y%m%d%H%M%S')}",
+                        status="SUCCESSFUL",
+                    )
+            except User.DoesNotExist:
+                pass
+            except Wallet.DoesNotExist:
+                pass
 
         refresh = RefreshToken.for_user(user)
         wallet_qs = Wallet.objects.filter(user=user)
@@ -80,6 +106,54 @@ class SendOTPView(APIView):
             return Response({"message": "OTP sent successfully"}, status=200)
         except User.DoesNotExist:
             return Response({"error": "User not found"}, status=404)
+
+
+class MyReferralView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        from .models import Referral
+
+        user = request.user
+        referrals = Referral.objects.filter(referrer=user).select_related("referred")
+        data = [
+            {
+                "id": r.id,
+                "referred_username": r.referred.username,
+                "referred_email": r.referred.email,
+                "rewarded": r.rewarded,
+                "created_at": r.created_at,
+            }
+            for r in referrals
+        ]
+        return Response({
+            "referral_code": user.referral_code,
+            "referral_link": f"https://ticbackend.pythonanywhere.com/register?ref={user.referral_code}",
+            "total_referrals": len(data),
+            "referrals": data,
+        })
+
+
+class MyReferralStatsView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        from .models import Referral, ReferralConfig
+        from django.db.models import Sum
+
+        user = request.user
+        total_referrals = Referral.objects.filter(referrer=user).count()
+        successful_referrals = Referral.objects.filter(referrer=user, rewarded=True).count()
+        bonus = ReferralConfig.get_bonus()
+        total_earned = successful_referrals * bonus
+
+        return Response({
+            "referral_code": user.referral_code,
+            "bonus_per_referral": str(bonus),
+            "total_referrals": total_referrals,
+            "successful_referrals": successful_referrals,
+            "total_earned": str(total_earned),
+        })
 
 
 class VerifyOTPView(APIView):

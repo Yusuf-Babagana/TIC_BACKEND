@@ -20,6 +20,8 @@ from .views import (
     DashboardPlanPriceUpdateView,
     DashboardPlanSyncView,
     DashboardPlanToggleView,
+    DashboardReferralListView,
+    DashboardReferralUpdateBonusView,
     DashboardTailoringListView,
     DashboardTailoringUpdateView,
     DashboardTransactionListView,
@@ -71,5 +73,11 @@ urlpatterns = [
         "users/<int:pk>/toggle-active/",
         DashboardUserToggleActiveView.as_view(),
         name="dashboard_user_toggle",
+    ),
+    path("referrals/", DashboardReferralListView.as_view(), name="dashboard_referrals"),
+    path(
+        "referrals/update-bonus/",
+        DashboardReferralUpdateBonusView.as_view(),
+        name="dashboard_referral_bonus",
     ),
 ]

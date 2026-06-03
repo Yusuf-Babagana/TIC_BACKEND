@@ -16,6 +16,7 @@ from django.contrib.auth import get_user_model
 
 from fashion.models import CustomStyleRequest, Notification, UserMeasurement
 from marketing.models import Flyer as FlyerModel, MarketingGallery as MarketingGalleryModel, Order as OrderModel
+from users.models import Referral, ReferralConfig
 from vtu.models import DataPlan, Provider
 from wallet.models import Transaction, Wallet
 
@@ -624,6 +625,39 @@ class DashboardOrderListView(LoginRequiredMixin, ListView):
         context["current_status"] = self.request.GET.get("status", "")
         context["status_choices"] = OrderModel.STATUS_CHOICES
         return context
+
+
+class DashboardReferralListView(LoginRequiredMixin, TemplateView):
+    template_name = "dashboard/referrals.html"
+    login_url = "/dashboard/login/"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        config, _ = ReferralConfig.objects.get_or_create(pk=1)
+        context["bonus_amount"] = config.bonus_amount
+        context["referrals"] = Referral.objects.select_related("referrer", "referred").all()[:100]
+        context["total_referrals"] = Referral.objects.count()
+        context["total_bonus_paid"] = Referral.objects.filter(rewarded=True).count() * config.bonus_amount
+        return context
+
+
+class DashboardReferralUpdateBonusView(LoginRequiredMixin, View):
+    login_url = "/dashboard/login/"
+
+    def post(self, request):
+        amount = request.POST.get("bonus_amount", "").strip()
+        if not amount:
+            return JsonResponse({"error": "Amount required"}, status=400)
+        try:
+            amount = Decimal(amount)
+            if amount <= 0:
+                return JsonResponse({"error": "Amount must be positive"}, status=400)
+            config, _ = ReferralConfig.objects.get_or_create(pk=1)
+            config.bonus_amount = amount
+            config.save(update_fields=["bonus_amount"])
+            return JsonResponse({"message": f"Referral bonus updated to ₦{amount}"})
+        except Exception:
+            return JsonResponse({"error": "Invalid amount"}, status=400)
 
 
 class DashboardOrderUpdateView(LoginRequiredMixin, View):
