@@ -463,7 +463,12 @@
         setTimeout(() => t.className = 'toast', 3000);
     }
 
-    function getCSRF() { return document.querySelector('[name=csrfmiddlewaretoken]')?.value || ''; }
+    function getCSRF() {
+        const el = document.querySelector('[name=csrfmiddlewaretoken]');
+        if (el) return el.value;
+        const match = document.cookie.match(/csrftoken=([^;]+)/);
+        return match ? match[1] : '';
+    }
 
     function openModal(id) { document.getElementById(id).classList.add('active'); }
     function closeModal(id) { document.getElementById(id).classList.remove('active'); }
