@@ -41,7 +41,13 @@ class CheapDataHubService:
         except requests.ConnectionError:
             raise CheapDataHubError("Provider connection failed")
         except ValueError:
-            raise CheapDataHubError("Provider returned invalid response")
+            logger.error(
+                "CheapDataHub non-JSON response: status=%s body=%s",
+                resp.status_code, resp.text[:500],
+            )
+            raise CheapDataHubError(
+                f"Provider returned invalid response (HTTP {resp.status_code})"
+            )
 
         if resp.status_code != 200:
             msg = body.get("message") or body.get("error") or f"HTTP {resp.status_code}"
