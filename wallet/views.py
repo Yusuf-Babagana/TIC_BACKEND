@@ -34,7 +34,7 @@ class WalletBalanceView(APIView):
             "balance": str(wallet.balance),
             "bank_name": wallet.bank_name,
             "account_number": wallet.account_number,
-            "account_name": wallet.account_name,
+            "account_name": wallet.account_name or f"{request.user.first_name} {request.user.last_name}".strip() or request.user.username,
         }, status=200)
 
 

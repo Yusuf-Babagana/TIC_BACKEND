@@ -194,14 +194,14 @@ class UnifiedPurchaseView(APIView):
         if category == "DATA":
             return {"bundle_id": int(plan_id), "phone_number": target_id}
         if category == "AIRTIME":
-            return {"provider_id": int(plan_id), "phone_number": target_id, "amount": str(amount)}
+            return {"provider_id": int(plan_id), "phone_number": target_id, "amount": str(int(amount))}
         if category == "CABLE":
             return {"plan_id": int(plan_id), "cardnumber": target_id, "phone": user.phone_number or "08012345678"}
         if category == "ELECTRICITY":
             return {
                 "disco_id": int(plan_id),
                 "meter_number": target_id,
-                "amount": str(amount),
+                "amount": str(int(amount)),
                 "meter_type": "prepaid",
                 "phone": target_id,
             }
@@ -309,7 +309,7 @@ class AirtimePurchaseView(APIView):
         payload = {
             "provider_id": int(provider_id),
             "phone_number": phone_number,
-            "amount": str(amount),
+            "amount": str(int(amount)),
         }
         return _execute_purchase(request.user, "AIRTIME", cost, payload)
 
@@ -361,7 +361,7 @@ class ElectricityPurchaseView(APIView):
         payload = {
             "disco_id": int(disco_id),
             "meter_number": meter_number,
-            "amount": str(amount),
+            "amount": str(int(cost)),
             "meter_type": meter_type,
             "phone": phone,
         }
