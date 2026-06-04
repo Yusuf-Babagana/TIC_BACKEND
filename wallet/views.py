@@ -34,6 +34,7 @@ class WalletBalanceView(APIView):
             "balance": str(wallet.balance),
             "bank_name": wallet.bank_name,
             "account_number": wallet.account_number,
+            "account_name": wallet.account_name,
         }, status=200)
 
 
@@ -188,6 +189,7 @@ class GenerateAccountView(APIView):
             wallet.bank_name = account["bank_name"]
             wallet.account_number = account["account_number"]
             wallet.account_reference = account["account_reference"]
+            wallet.account_name = account["account_name"]
             wallet.save()
             return Response(
                 {"message": "Account generated successfully", "data": account},
@@ -247,12 +249,14 @@ class SubmitBVNView(APIView):
             wallet.bank_name = account["bank_name"]
             wallet.account_number = account["account_number"]
             wallet.account_reference = account["account_reference"]
-            wallet.save(update_fields=["bank_name", "account_number", "account_reference"])
+            wallet.account_name = account["account_name"]
+            wallet.save(update_fields=["bank_name", "account_number", "account_reference", "account_name"])
 
             response_data = {
                 "bank_name": account["bank_name"],
                 "account_number": account["account_number"],
                 "account_reference": account["account_reference"],
+                "account_name": account["account_name"],
             }
 
             return Response(

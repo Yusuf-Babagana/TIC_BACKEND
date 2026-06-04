@@ -87,4 +87,5 @@ class MonnifyService:
             "bank_name": first.get("bankName", "Unknown"),
             "account_number": first.get("accountNumber", ""),
             "account_reference": response_body.get("accountReference", ""),
+            "account_name": response_body.get("accountName", account_name),
         }

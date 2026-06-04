@@ -12,6 +12,7 @@ class Wallet(models.Model):
     bank_name = models.CharField(max_length=100, null=True, blank=True)
     account_number = models.CharField(max_length=20, null=True, blank=True)
     account_reference = models.CharField(max_length=100, null=True, blank=True)
+    account_name = models.CharField(max_length=200, null=True, blank=True)
 
     def __str__(self):
         return f"{self.user.username} - {self.account_number or 'No Acct'} (₦{self.balance})"
