@@ -88,6 +88,7 @@ class UnifiedPurchaseView(APIView):
         target_id = data["target_id"]
         plan_id = data["plan_id"]
         amount = data.get("amount")
+        provider_name = data.get("provider", "")
         user = request.user
 
         if category in ("AIRTIME", "ELECTRICITY"):
@@ -124,7 +125,7 @@ class UnifiedPurchaseView(APIView):
                         status=status.HTTP_400_BAD_REQUEST,
                     )
 
-                payload = self._build_payload(category, plan_id, target_id, amount, user)
+                payload = self._build_payload(category, plan_id, target_id, amount, provider_name, user)
                 result = CheapDataHubService.purchase(category, payload)
 
                 provider_status = result.get("status")
@@ -190,11 +191,13 @@ class UnifiedPurchaseView(APIView):
             )
 
     @staticmethod
-    def _build_payload(category, plan_id, target_id, amount, user):
+    def _build_payload(category, plan_id, target_id, amount, provider_name, user):
         if category == "DATA":
             return {"bundle_id": int(plan_id), "phone_number": target_id}
         if category == "AIRTIME":
-            return {"provider_id": int(plan_id), "phone_number": target_id, "amount": int(amount)}
+            from vtu.providers import resolve_network_id
+            provider_id = resolve_network_id(provider_name) or int(plan_id)
+            return {"provider_id": provider_id, "phone_number": target_id, "amount": int(amount)}
         if category == "CABLE":
             return {"plan_id": int(plan_id), "cardnumber": target_id, "phone": user.phone_number or "08012345678"}
         if category == "ELECTRICITY":

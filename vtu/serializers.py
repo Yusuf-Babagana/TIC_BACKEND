@@ -44,6 +44,7 @@ class UnifiedPurchaseSerializer(serializers.Serializer):
     target_id = serializers.CharField()
     plan_id = serializers.IntegerField()
     amount = serializers.DecimalField(max_digits=10, decimal_places=2, required=False)
+    provider = serializers.CharField(required=False, allow_blank=True)
 
     def validate(self, attrs):
         category = attrs.get("category")
