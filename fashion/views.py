@@ -158,6 +158,9 @@ class PayForTailoringView(APIView):
                     reference=f"TAILOR-{order.id}-{order.created_at.strftime('%Y%m%d%H%M%S')}",
                 )
 
+                from users.utils import reward_referrer_on_first_purchase
+                reward_referrer_on_first_purchase(user)
+
             return Response(
                 {"message": "Payment successful", "order_id": order.id},
                 status=status.HTTP_200_OK,

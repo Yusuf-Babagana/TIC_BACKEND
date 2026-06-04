@@ -21,13 +21,13 @@ def reward_referrer_on_first_purchase(user):
     from wallet.models import Transaction as Txn
     from wallet.models import Wallet
 
-    VTU_TYPES = ["DATA", "AIRTIME", "UTILITY"]
-    vtu_count = (
-        Txn.objects.filter(user=user, status="SUCCESSFUL", trans_type__in=VTU_TYPES)
+    PURCHASE_TYPES = ["DATA", "AIRTIME", "UTILITY", "EXAMPIN"]
+    purchase_count = (
+        Txn.objects.filter(user=user, status="SUCCESSFUL", trans_type__in=PURCHASE_TYPES)
         .count()
     )
 
-    if vtu_count != 1:
+    if purchase_count != 1:
         return
 
     bonus = ReferralConfig.get_bonus()

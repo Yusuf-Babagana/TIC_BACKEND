@@ -136,6 +136,9 @@ class CheckoutView(APIView):
             status="SUCCESSFUL",
         )
 
+        from users.utils import reward_referrer_on_first_purchase
+        reward_referrer_on_first_purchase(request.user)
+
         cart.items.all().delete()
 
         return Response(

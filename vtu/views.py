@@ -141,6 +141,10 @@ class UnifiedPurchaseView(APIView):
                                   or f"SUCCESS-{uuid.uuid4().hex[:12].upper()}",
                         status="SUCCESSFUL",
                     )
+
+                    from users.utils import reward_referrer_on_first_purchase
+                    reward_referrer_on_first_purchase(user)
+
                     return Response(result, status=status.HTTP_200_OK)
 
                 msg = result.get("message") or result.get("error") or "Provider request failed"
@@ -237,6 +241,10 @@ def _execute_purchase(user, category, cost, provider_payload):
                               or f"SUCCESS-{uuid.uuid4().hex[:12].upper()}",
                     status="SUCCESSFUL",
                 )
+
+                from users.utils import reward_referrer_on_first_purchase
+                reward_referrer_on_first_purchase(user)
+
                 return Response(result, status=status.HTTP_200_OK)
 
             msg = result.get("message") or result.get("error") or "Provider request failed"

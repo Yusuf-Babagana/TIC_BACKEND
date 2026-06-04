@@ -4,7 +4,6 @@ from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView
 from django.contrib.auth import get_user_model
-from django.utils import timezone
 
 from .serializers import RegisterSerializer, MyTokenObtainPairSerializer
 from .utils import generate_otp
@@ -30,27 +29,10 @@ class RegisterView(generics.CreateAPIView):
         referral_code = serializer.validated_data.get("referral_code", "")
         if referral_code:
             try:
-                from .models import Referral, ReferralConfig
+                from .models import Referral
 
                 referrer = User.objects.get(referral_code=referral_code)
                 Referral.objects.get_or_create(referrer=referrer, referred=user)
-                bonus = ReferralConfig.get_bonus()
-                if bonus > 0:
-                    from django.db import transaction as db_transaction
-                    from wallet.models import Transaction
-
-                    wallet, _ = Wallet.objects.get_or_create(user=user)
-                    with db_transaction.atomic():
-                        wallet = Wallet.objects.select_for_update().get(pk=wallet.pk)
-                        wallet.balance += bonus
-                        wallet.save(update_fields=["balance"])
-                        Transaction.objects.create(
-                            user=user,
-                            trans_type="DEPOSIT",
-                            amount=bonus,
-                            reference=f"SIGNUP-{user.id}-{timezone.now().strftime('%Y%m%d%H%M%S')}",
-                            status="SUCCESSFUL",
-                        )
             except User.DoesNotExist:
                 pass
 
