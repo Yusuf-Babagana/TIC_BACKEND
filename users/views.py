@@ -8,7 +8,7 @@ from django.utils import timezone
 
 from .serializers import RegisterSerializer, MyTokenObtainPairSerializer
 from .utils import generate_otp
-from wallet.models import Transaction, Wallet
+from wallet.models import Wallet
 from wallet.serializers import WalletSerializer
 
 User = get_user_model()
@@ -30,26 +30,28 @@ class RegisterView(generics.CreateAPIView):
         referral_code = serializer.validated_data.get("referral_code", "")
         if referral_code:
             try:
-                from django.db import transaction as db_transaction
                 from .models import Referral, ReferralConfig
 
                 referrer = User.objects.get(referral_code=referral_code)
-                with db_transaction.atomic():
-                    Referral.objects.create(referrer=referrer, referred=user)
-                    bonus = ReferralConfig.get_bonus()
-                    wallet = Wallet.objects.select_for_update().get(user=referrer)
-                    wallet.balance += bonus
-                    wallet.save(update_fields=["balance"])
-                    Transaction.objects.create(
-                        user=referrer,
-                        trans_type="DEPOSIT",
-                        amount=bonus,
-                        reference=f"REF-{referrer.id}-{user.id}-{timezone.now().strftime('%Y%m%d%H%M%S')}",
-                        status="SUCCESSFUL",
-                    )
+                Referral.objects.get_or_create(referrer=referrer, referred=user)
+                bonus = ReferralConfig.get_bonus()
+                if bonus > 0:
+                    from django.db import transaction as db_transaction
+                    from wallet.models import Transaction
+
+                    wallet, _ = Wallet.objects.get_or_create(user=user)
+                    with db_transaction.atomic():
+                        wallet = Wallet.objects.select_for_update().get(pk=wallet.pk)
+                        wallet.balance += bonus
+                        wallet.save(update_fields=["balance"])
+                        Transaction.objects.create(
+                            user=user,
+                            trans_type="DEPOSIT",
+                            amount=bonus,
+                            reference=f"SIGNUP-{user.id}-{timezone.now().strftime('%Y%m%d%H%M%S')}",
+                            status="SUCCESSFUL",
+                        )
             except User.DoesNotExist:
-                pass
-            except Wallet.DoesNotExist:
                 pass
 
         refresh = RefreshToken.for_user(user)
