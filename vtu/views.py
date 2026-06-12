@@ -93,6 +93,11 @@ class UnifiedPurchaseView(APIView):
 
         if category in ("AIRTIME", "ELECTRICITY"):
             cost = amount
+            if category == "AIRTIME" and cost < 100:
+                return Response(
+                    {"status": "false", "message": "Minimum airtime amount is ₦100"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
         elif category == "DATA":
             plan = get_data_plan(plan_id)
             if plan is None:
@@ -309,6 +314,11 @@ class AirtimePurchaseView(APIView):
             )
 
         cost = Decimal(str(amount))
+        if cost < 100:
+            return Response(
+                {"status": "false", "message": "Minimum airtime amount is ₦100"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         payload = {
             "provider_id": int(provider_id),
             "phone_number": phone_number,

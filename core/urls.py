@@ -16,6 +16,7 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path, include, reverse_lazy
+from rest_framework_simplejwt.views import TokenRefreshView
 from django.conf import settings
 from django.conf.urls.static import static
 from django.views.generic.base import RedirectView
@@ -29,6 +30,7 @@ urlpatterns = [
     path('fashion/', include('fashion.urls')),
     path('vtu/', include('vtu.urls')),
     path('api/v1/resellers/', include('vtu.reseller_urls')),
+    path('api/token/refresh/', TokenRefreshView.as_view(), name='api_token_refresh'),
     path('marketing/', include('marketing.urls')),
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
 

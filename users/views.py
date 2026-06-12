@@ -67,6 +67,7 @@ class RegisterView(generics.CreateAPIView):
 
 class LoginView(TokenObtainPairView):
     serializer_class = MyTokenObtainPairSerializer
+    permission_classes = [permissions.AllowAny]
 
 
 class SendOTPView(APIView):
