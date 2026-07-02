@@ -636,6 +636,33 @@
 
     pollNotifications();
     setInterval(pollNotifications, 15000);
+
+    /* ── Inactivity Logout (10 min) ── */
+    (function() {
+        var timeout = 600000;
+        var warning = 540000;
+        var timer, warningTimer;
+        function logout() {
+            fetch('/dashboard/logout/', { method: 'GET', credentials: 'same-origin' })
+                .then(function() { window.location.href = '/dashboard/login/'; })
+                .catch(function() { window.location.href = '/dashboard/login/'; });
+        }
+        function showWarning() {
+            var t = document.getElementById('toast');
+            t.textContent = 'Session expiring in 1 minute due to inactivity';
+            t.className = 'toast error show';
+            setTimeout(function() { if (t.className.indexOf('show') > -1) t.className = 'toast'; }, 8000);
+        }
+        function resetTimer() {
+            clearTimeout(timer);
+            clearTimeout(warningTimer);
+            timer = setTimeout(logout, timeout);
+            warningTimer = setTimeout(showWarning, warning);
+        }
+        var events = ['mousedown','mousemove','keydown','scroll','touchstart','click'];
+        events.forEach(function(ev) { document.addEventListener(ev, resetTimer, {passive:true}); });
+        resetTimer();
+    })();
     </script>
 </body>
 </html>

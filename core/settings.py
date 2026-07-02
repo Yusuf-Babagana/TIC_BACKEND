@@ -150,6 +150,9 @@ PROXY_TEST_NIN = env("PROXY_TEST_NIN", default="").strip()
 LOGIN_URL = "/dashboard/login/"
 LOGOUT_REDIRECT_URL = "/dashboard/login/"
 
+SESSION_COOKIE_AGE = 600
+SESSION_SAVE_EVERY_REQUEST = True
+
 CORS_ALLOWED_ORIGINS = env.list(
     "CORS_ALLOWED_ORIGINS",
     default=[
