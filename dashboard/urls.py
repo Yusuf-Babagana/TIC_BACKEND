@@ -29,6 +29,9 @@ from .views import (
     DashboardUserListView,
     DashboardUserToggleActiveView,
     DashboardWalletAdjustView,
+    NotificationMarkAllReadView,
+    NotificationMarkReadView,
+    NotificationPollView,
 )
 
 urlpatterns = [
@@ -80,4 +83,7 @@ urlpatterns = [
         DashboardReferralUpdateBonusView.as_view(),
         name="dashboard_referral_bonus",
     ),
+    path("notifications/", NotificationPollView.as_view(), name="dashboard_notifications"),
+    path("notifications/<int:pk>/read/", NotificationMarkReadView.as_view(), name="dashboard_notification_read"),
+    path("notifications/read-all/", NotificationMarkAllReadView.as_view(), name="dashboard_notification_read_all"),
 ]

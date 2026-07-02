@@ -660,6 +660,45 @@ class DashboardReferralUpdateBonusView(LoginRequiredMixin, View):
             return JsonResponse({"error": "Invalid amount"}, status=400)
 
 
+from .models import AdminNotification
+
+
+class NotificationPollView(LoginRequiredMixin, View):
+    login_url = "/dashboard/login/"
+
+    def get(self, request):
+        unread = AdminNotification.objects.filter(is_read=False)[:20]
+        data = [
+            {
+                "id": n.id,
+                "type": n.notification_type,
+                "message": n.message,
+                "link": n.link,
+                "created_at": n.created_at.strftime("%Y-%m-%d %H:%M"),
+            }
+            for n in unread
+        ]
+        return JsonResponse({"notifications": data, "count": len(data)})
+
+
+class NotificationMarkReadView(LoginRequiredMixin, View):
+    login_url = "/dashboard/login/"
+
+    def post(self, request, pk):
+        note = get_object_or_404(AdminNotification, pk=pk)
+        note.is_read = True
+        note.save(update_fields=["is_read"])
+        return JsonResponse({"ok": True})
+
+
+class NotificationMarkAllReadView(LoginRequiredMixin, View):
+    login_url = "/dashboard/login/"
+
+    def post(self, request):
+        AdminNotification.objects.filter(is_read=False).update(is_read=True)
+        return JsonResponse({"ok": True})
+
+
 class DashboardOrderUpdateView(LoginRequiredMixin, View):
     login_url = "/dashboard/login/"
 
