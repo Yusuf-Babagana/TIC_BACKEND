@@ -218,7 +218,8 @@ All error responses: `{ "status": "false", "message": "..." }` or `{ "error": ".
 | `DATA` | Data bundle purchase |
 | `AIRTIME` | Airtime top-up |
 | `UTILITY` | Electricity / Cable / Tailoring payment |
-| `DEPOSIT` | Wallet funding via Monnify |
+| `DEPOSIT` | Wallet funding v
+ia Monnify |
 
 ## Transaction Statuses
 
