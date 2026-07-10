@@ -37,7 +37,8 @@ class Transaction(models.Model):
     amount = models.DecimalField(max_digits=10, decimal_places=2)
     fee = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0.00'))
     net_amount = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
-    reference = models.CharField(max_length=100, unique=True) # From CheapDataHub / Monnify
+    reference = models.CharField(max_length=100, unique=True) # From CheapDataHub / Monnify / Nellobytes RequestID
+    order_id = models.CharField(max_length=100, null=True, blank=True, db_index=True) # Nellobytes orderid
     status = models.CharField(max_length=12, choices=STATUS_CHOICES, default='PENDING')
     created_at = models.DateTimeField(auto_now_add=True)
 

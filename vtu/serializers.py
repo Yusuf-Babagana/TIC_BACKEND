@@ -42,9 +42,10 @@ class UnifiedPurchaseSerializer(serializers.Serializer):
 
     category = serializers.ChoiceField(choices=CATEGORY_CHOICES)
     target_id = serializers.CharField()
-    plan_id = serializers.IntegerField()
+    plan_id = serializers.CharField()
     amount = serializers.DecimalField(max_digits=10, decimal_places=2, required=False)
     provider = serializers.CharField(required=False, allow_blank=True)
+    meter_type = serializers.ChoiceField(choices=["PREPAID", "POSTPAID"], required=False, default="PREPAID")
 
     def validate(self, attrs):
         category = attrs.get("category")
@@ -52,5 +53,9 @@ class UnifiedPurchaseSerializer(serializers.Serializer):
         if category in ("AIRTIME", "ELECTRICITY") and amount is None:
             raise serializers.ValidationError(
                 {"amount": "amount is required for AIRTIME and ELECTRICITY purchases"}
+            )
+        if category in ("DATA", "AIRTIME", "CABLE", "ELECTRICITY") and not attrs.get("provider"):
+            raise serializers.ValidationError(
+                {"provider": "provider (network/company) is required for DATA, AIRTIME, CABLE, and ELECTRICITY purchases"}
             )
         return attrs

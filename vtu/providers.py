@@ -29,8 +29,22 @@ def resolve_network_id(name):
     return PROVIDERS["networks"].get(name.upper())
 
 
+def network_name_from_provider_id(provider_id):
+    for name, pid in PROVIDERS["networks"].items():
+        if pid == int(provider_id):
+            return name
+    return None
+
+
 def resolve_disco_id(name):
     return PROVIDERS["electricity"].get(name.upper())
+
+
+def disco_name_from_id(disco_id):
+    for name, did in PROVIDERS["electricity"].items():
+        if did == int(disco_id):
+            return name
+    return None
 
 
 def resolve_cable_id(name):

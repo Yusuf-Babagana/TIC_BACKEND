@@ -132,6 +132,18 @@ elif len(CHEAPDATAHUB_API_KEY) < 20:
     )
 
 # ------------------------------------------------------------------
+# Nellobytes
+# ------------------------------------------------------------------
+NELLOBYTES_USER_ID = env("NELLOBYTES_USER_ID", default="").strip()
+NELLOBYTES_API_KEY = env("NELLOBYTES_API_KEY", default="").strip()
+
+if not NELLOBYTES_USER_ID or not NELLOBYTES_API_KEY:
+    import warnings
+    warnings.warn("NELLOBYTES_USER_ID/NELLOBYTES_API_KEY is empty — data purchases will fail at runtime.")
+
+PUBLIC_BASE_URL = env("PUBLIC_BASE_URL", default="https://ticbackend.pythonanywhere.com").strip()
+
+# ------------------------------------------------------------------
 # Monnify
 # ------------------------------------------------------------------
 MONNIFY_API_KEY = env("MONNIFY_API_KEY", default="").strip()

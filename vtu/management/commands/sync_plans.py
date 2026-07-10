@@ -22,7 +22,9 @@ class Command(BaseCommand):
 
         updated = 0
         for entry in DATA_PLANS:
-            plan = DataPlan.objects.filter(plan_id=entry["id"]).first()
+            plan = DataPlan.objects.filter(
+                network=entry["provider"].upper(), plan_id=str(entry["id"])
+            ).first()
             if not plan:
                 continue
 
@@ -41,7 +43,9 @@ class Command(BaseCommand):
 
         updated = 0
         for entry in CABLE_PLANS:
-            plan = CablePlan.objects.filter(plan_id=entry["id"]).first()
+            plan = CablePlan.objects.filter(
+                provider_name=entry["provider"].upper(), plan_id=str(entry["id"])
+            ).first()
             if not plan:
                 continue
 
