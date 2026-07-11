@@ -1,10 +1,11 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from .views import CategoryViewSet, CustomStyleRequestCreateView, CustomStyleRequestAdminView, CustomTailoringView, MyOrderDetailView, MyOrdersListView, NotificationListView, NotificationMarkReadView, PayForTailoringView, ProductViewSet, UserMeasurementView
+from .views import CategoryViewSet, CustomStyleRequestCreateView, CustomStyleRequestAdminView, CustomTailoringView, FabricBrandViewSet, MyOrderDetailView, MyOrdersListView, NotificationListView, NotificationMarkReadView, PayForTailoringView, ProductViewSet, UserMeasurementView
 
 router = DefaultRouter()
 router.register(r'categories', CategoryViewSet)
 router.register(r'products', ProductViewSet)
+router.register(r'fabric-brands', FabricBrandViewSet)
 
 urlpatterns = [
     path('measurements/', UserMeasurementView.as_view(), name='measurements'),

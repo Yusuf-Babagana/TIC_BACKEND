@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Category, Notification, Product, UserMeasurement, CustomStyleRequest
+from .models import Category, FabricBrand, FabricGrade, Notification, Product, UserMeasurement, CustomStyleRequest
 
 @admin.register(Category)
 class CategoryAdmin(admin.ModelAdmin):
@@ -17,12 +17,33 @@ class UserMeasurementAdmin(admin.ModelAdmin):
     list_display = ('id', 'user', 'neck', 'chest', 'waist', 'shoulder', 'length', 'last_updated')
     search_fields = ('user__username', 'user__email')
 
+class FabricGradeInline(admin.TabularInline):
+    model = FabricGrade
+    extra = 1
+
+@admin.register(FabricBrand)
+class FabricBrandAdmin(admin.ModelAdmin):
+    list_display = ('id', 'name', 'position')
+    ordering = ('position',)
+    inlines = [FabricGradeInline]
+
+@admin.register(FabricGrade)
+class FabricGradeAdmin(admin.ModelAdmin):
+    list_display = ('id', 'brand', 'name', 'price')
+    list_filter = ('brand',)
+
 @admin.register(CustomStyleRequest)
 class CustomStyleRequestAdmin(admin.ModelAdmin):
-    list_display = ('id', 'user', 'status', 'price_quote', 'created_at')
+    list_display = ('id', 'user', 'status', 'price_quote', 'fabric_grade', 'quote_expires_at', 'created_at')
     list_filter = ('status', 'created_at')
     search_fields = ('user__username', 'user__email', 'description')
-    readonly_fields = ('created_at',)
+    readonly_fields = ('created_at', 'quote_expires_at')
+
+    def save_model(self, request, obj, form, change):
+        if change and 'status' in form.changed_data and obj.status == 'quoted':
+            from django.utils import timezone
+            obj.quote_expires_at = timezone.now() + CustomStyleRequest.QUOTE_VALIDITY
+        super().save_model(request, obj, form, change)
 
 @admin.register(Notification)
 class NotificationAdmin(admin.ModelAdmin):

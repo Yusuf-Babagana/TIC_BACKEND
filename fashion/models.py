@@ -1,3 +1,5 @@
+from datetime import timedelta
+
 from django.db import models
 from django.conf import settings
 
@@ -31,23 +33,53 @@ class UserMeasurement(models.Model):
     length = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
     last_updated = models.DateTimeField(auto_now=True)
 
+class FabricBrand(models.Model):
+    name = models.CharField(max_length=100)
+    position = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ["position", "name"]
+
+    def __str__(self):
+        return self.name
+
+
+class FabricGrade(models.Model):
+    brand = models.ForeignKey(FabricBrand, on_delete=models.CASCADE, related_name="grades")
+    name = models.CharField(max_length=50)
+    price = models.PositiveIntegerField()
+
+    class Meta:
+        ordering = ["brand__position", "price"]
+
+    def __str__(self):
+        return f"{self.brand.name} - {self.name}"
+
+
 class CustomStyleRequest(models.Model):
     # For FR-17 and FR-19: Custom sewing and reference images
     STATUS_CHOICES = [
         ('pending', 'Pending Review'),    # User just submitted
         ('quoted', 'Price Quoted'),       # Admin set a price
+        ('expired', 'Quote Expired'),     # Quote not paid within the validity window
         ('paid', 'Payment Confirmed'),    # User paid from wallet
         ('cutting', 'Cutting Fabric'),    # Production started
         ('sewing', 'Sewing in Progress'), # Tailor is working
         ('completed', 'Ready for Delivery'),  # Ready to deliver
         ('delivered', 'Delivered'),       # Delivered to customer
     ]
+    QUOTE_VALIDITY = timedelta(days=3)
+
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     description = models.TextField()
     reference_image = models.ImageField(upload_to='custom_requests/')
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
     price_quote = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    fabric_grade = models.ForeignKey(
+        FabricGrade, on_delete=models.SET_NULL, null=True, blank=True, related_name="requests"
+    )
     delivery_address = models.TextField(blank=True, default="")
+    quote_expires_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
 

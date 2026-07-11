@@ -7,11 +7,12 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.authentication import JWTAuthentication
 
-from .models import Category, Notification, Product, UserMeasurement, CustomStyleRequest
+from .models import Category, FabricBrand, Notification, Product, UserMeasurement, CustomStyleRequest
 from .serializers import (
     CategorySerializer,
     CustomStyleRequestSerializer,
     CustomStyleRequestUpdateSerializer,
+    FabricBrandSerializer,
     NotificationMarkReadSerializer,
     NotificationSerializer,
     ProductSerializer,
@@ -23,6 +24,11 @@ class CategoryViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Category.objects.all().order_by("id")
     serializer_class = CategorySerializer
     permission_classes = [permissions.AllowAny] # Publicly browsable
+
+class FabricBrandViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = FabricBrand.objects.prefetch_related("grades").all()
+    serializer_class = FabricBrandSerializer
+    permission_classes = [permissions.AllowAny] # Publicly browsable, same as categories
 
 class ProductViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Product.objects.filter(is_available=True).order_by("-id")
@@ -52,8 +58,11 @@ class CustomStyleRequestCreateView(generics.CreateAPIView):
     parser_classes = [MultiPartParser, FormParser] # Required for image uploads
 
     def perform_create(self, serializer):
-        # Link the request to the logged-in user
-        serializer.save(user=self.request.user)
+        # Link the request to the logged-in user; if a fabric_grade was picked,
+        # its price seeds price_quote as a starting point the admin can adjust.
+        fabric_grade = serializer.validated_data.get("fabric_grade")
+        price_quote = fabric_grade.price if fabric_grade else None
+        serializer.save(user=self.request.user, price_quote=price_quote)
 
 class MyOrdersListView(generics.ListAPIView):
     serializer_class = CustomStyleRequestSerializer
@@ -82,10 +91,13 @@ class CustomTailoringView(APIView):
     parser_classes = [MultiPartParser, FormParser]
 
     def post(self, request):
+        from .models import FabricGrade
+
         user = request.user
         description = request.data.get("description")
         reference_image = request.FILES.get("reference_image")
         delivery_address = request.data.get("delivery_address", "")
+        fabric_grade_id = request.data.get("fabric_grade")
 
         if not description:
             return Response(
@@ -93,11 +105,24 @@ class CustomTailoringView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
+        fabric_grade = None
+        price_quote = None
+        if fabric_grade_id:
+            fabric_grade = FabricGrade.objects.filter(pk=fabric_grade_id).first()
+            if fabric_grade is None:
+                return Response(
+                    {"error": f"Unknown fabric_grade: {fabric_grade_id}"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            price_quote = fabric_grade.price
+
         style_request = CustomStyleRequest.objects.create(
             user=user,
             description=description,
             reference_image=reference_image,
             delivery_address=delivery_address,
+            fabric_grade=fabric_grade,
+            price_quote=price_quote,
         )
 
         serializer = CustomStyleRequestSerializer(style_request)
@@ -109,10 +134,15 @@ class PayForTailoringView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def post(self, request):
+        from users.utils import check_transaction_pin
         from wallet.models import Wallet, Transaction
 
         user = request.user
         order_id = request.data.get("order_id")
+
+        pin_ok, pin_error = check_transaction_pin(user, request.data.get("transaction_pin"))
+        if not pin_ok:
+            return Response({"error": pin_error}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
             order = CustomStyleRequest.objects.get(id=order_id, user=user)
