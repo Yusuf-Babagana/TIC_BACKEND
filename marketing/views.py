@@ -89,6 +89,12 @@ class CheckoutView(APIView):
 
     @transaction.atomic
     def post(self, request):
+        from users.utils import check_transaction_pin
+
+        pin_ok, pin_error = check_transaction_pin(request.user, request.data.get("transaction_pin"))
+        if not pin_ok:
+            return Response({"error": pin_error}, status=status.HTTP_400_BAD_REQUEST)
+
         ser = CheckoutSerializer(data=request.data)
         ser.is_valid(raise_exception=True)
         delivery_address = ser.validated_data.get("delivery_address", "")
