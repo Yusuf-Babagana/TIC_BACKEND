@@ -37,6 +37,7 @@ INSTALLED_APPS = [
     "marketing",
     "rest_framework",
     "rest_framework_simplejwt",
+    "rest_framework_simplejwt.token_blacklist",
 ]
 
 MIDDLEWARE = [
@@ -116,6 +117,24 @@ MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
 
 # ------------------------------------------------------------------
+# Email (Gmail SMTP) — used to deliver OTP codes
+# ------------------------------------------------------------------
+EMAIL_HOST_USER = env("EMAIL_HOST_USER", default="").strip()
+EMAIL_HOST_PASSWORD = env("EMAIL_HOST_PASSWORD", default="").strip()
+DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default=EMAIL_HOST_USER or "no-reply@ticbackend.local")
+
+if EMAIL_HOST_USER and EMAIL_HOST_PASSWORD:
+    EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
+    EMAIL_HOST = "smtp.gmail.com"
+    EMAIL_PORT = 587
+    EMAIL_USE_TLS = True
+else:
+    # No SMTP creds configured yet — OTPs are printed to the console/log instead of failing outright.
+    EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
+    import warnings
+    warnings.warn("EMAIL_HOST_USER/EMAIL_HOST_PASSWORD not set — OTP emails will only print to the console.")
+
+# ------------------------------------------------------------------
 # CheapDataHub
 # ------------------------------------------------------------------
 _raw_key = env("CHEAPDATAHUB_API_KEY", default="").strip()
@@ -134,8 +153,8 @@ elif len(CHEAPDATAHUB_API_KEY) < 20:
 # ------------------------------------------------------------------
 # Nellobytes
 # ------------------------------------------------------------------
-NELLOBYTES_USER_ID = env("NELLOBYTES_USER_ID", default="").strip()
-NELLOBYTES_API_KEY = env("NELLOBYTES_API_KEY", default="").strip()
+NELLOBYTES_USER_ID = env("VTU_USER_ID", default="").strip()
+NELLOBYTES_API_KEY = env("VTU_API_KEY", default="").strip()
 
 if not NELLOBYTES_USER_ID or not NELLOBYTES_API_KEY:
     import warnings

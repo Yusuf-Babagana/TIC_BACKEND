@@ -1,11 +1,41 @@
 import random
 
+from django.conf import settings
+from django.core.mail import send_mail
 from django.db import transaction as db_transaction
 from django.utils import timezone
 
 
 def generate_otp():
     return str(random.randint(100000, 999999))
+
+
+def check_transaction_pin(user, pin):
+    """
+    Returns (ok, error_message). PIN enforcement only kicks in once a user has
+    opted in by setting one (has_transaction_pin) — users who haven't set a
+    PIN yet can still spend without one, same as before this was wired in.
+    """
+    if not user.transaction_pin:
+        return True, None
+    if not pin:
+        return False, "transaction_pin is required"
+
+    from django.contrib.auth.hashers import check_password
+
+    if not check_password(pin, user.transaction_pin):
+        return False, "Incorrect transaction PIN"
+    return True, None
+
+
+def send_otp_email(email, otp):
+    send_mail(
+        subject="Your TIC verification code",
+        message=f"Your OTP code is {otp}. It expires once used or a new one is requested.",
+        from_email=settings.DEFAULT_FROM_EMAIL,
+        recipient_list=[email],
+        fail_silently=False,
+    )
 
 
 def reward_referrer_on_first_purchase(user):

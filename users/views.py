@@ -1,12 +1,23 @@
 from rest_framework import status, generics, permissions
+from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView
 from django.contrib.auth import get_user_model
+from django.contrib.auth.hashers import check_password, make_password
 
-from .serializers import RegisterSerializer, MyTokenObtainPairSerializer
-from .utils import generate_otp
+from .serializers import (
+    ChangeTransactionPinSerializer,
+    RegisterSerializer,
+    MyTokenObtainPairSerializer,
+    ResetPasswordSerializer,
+    SetTransactionPinSerializer,
+    UserSerializer,
+    VerifyTransactionPinSerializer,
+)
+from .utils import generate_otp, send_otp_email
 from wallet.models import Wallet
 from wallet.serializers import WalletSerializer
 
@@ -25,6 +36,7 @@ class RegisterView(generics.CreateAPIView):
         otp = generate_otp()
         user.otp_code = otp
         user.save(update_fields=["otp_code"])
+        send_otp_email(user.email, otp)
 
         referral_code = serializer.validated_data.get("referral_code", "")
         if referral_code:
@@ -89,9 +101,106 @@ class SendOTPView(APIView):
             otp = generate_otp()
             user.otp_code = otp
             user.save(update_fields=["otp_code"])
+            send_otp_email(user.email, otp)
             return Response({"message": "OTP sent successfully"}, status=200)
         except User.DoesNotExist:
             return Response({"error": "User not found"}, status=404)
+
+
+class MeView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
+
+    def get(self, request):
+        return Response(UserSerializer(request.user).data)
+
+    def patch(self, request):
+        serializer = UserSerializer(request.user, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data)
+
+
+class SetTransactionPinView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        if request.user.transaction_pin:
+            return Response(
+                {"error": "PIN already set. Use transaction-pin/change/ to update it."},
+                status=400,
+            )
+        serializer = SetTransactionPinSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        request.user.transaction_pin = make_password(serializer.validated_data["pin"])
+        request.user.save(update_fields=["transaction_pin"])
+        return Response({"message": "Transaction PIN set successfully"}, status=200)
+
+
+class ChangeTransactionPinView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        serializer = ChangeTransactionPinSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        user = request.user
+        current_pin = serializer.validated_data["current_pin"]
+        if not user.transaction_pin or not check_password(current_pin, user.transaction_pin):
+            return Response({"error": "Current PIN is incorrect"}, status=400)
+        user.transaction_pin = make_password(serializer.validated_data["new_pin"])
+        user.save(update_fields=["transaction_pin"])
+        return Response({"message": "Transaction PIN updated successfully"}, status=200)
+
+
+class VerifyTransactionPinView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        serializer = VerifyTransactionPinSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        user = request.user
+        pin = serializer.validated_data["pin"]
+        valid = bool(user.transaction_pin) and check_password(pin, user.transaction_pin)
+        return Response({"valid": valid}, status=200 if valid else 400)
+
+
+class LogoutView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        refresh = request.data.get("refresh")
+        if not refresh:
+            return Response({"error": "refresh is required"}, status=400)
+        try:
+            RefreshToken(refresh).blacklist()
+        except TokenError:
+            return Response({"error": "Invalid or already-blacklisted token"}, status=400)
+        return Response({"message": "Logged out successfully"}, status=200)
+
+
+class ResetPasswordView(APIView):
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request):
+        serializer = ResetPasswordSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        try:
+            if data.get("email"):
+                user = User.objects.get(email=data["email"])
+            else:
+                user = User.objects.get(phone_number=data["phone_number"])
+        except User.DoesNotExist:
+            return Response({"error": "User not found"}, status=404)
+
+        if not user.otp_code or user.otp_code != data["otp"]:
+            return Response({"error": "Invalid OTP"}, status=400)
+
+        user.password = make_password(data["new_password"])
+        user.otp_code = None
+        user.save(update_fields=["password", "otp_code"])
+        return Response({"message": "Password reset successfully"}, status=200)
 
 
 class MyReferralView(APIView):

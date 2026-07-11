@@ -11,11 +11,23 @@ def generate_referral_code():
 
 
 class User(AbstractUser):
+    KYC_NONE = "none"
+    KYC_TIER1 = "tier1"
+    KYC_TIER2 = "tier2"
+    KYC_LEVEL_CHOICES = [
+        (KYC_NONE, "Unverified"),
+        (KYC_TIER1, "Tier 1"),
+        (KYC_TIER2, "Tier 2"),
+    ]
+
     phone_number = models.CharField(max_length=15, unique=True, blank=True, null=True)
     email = models.EmailField(unique=True)
     is_verified = models.BooleanField(default=False)
     referral_code = models.CharField(max_length=12, unique=True, blank=True, null=True)
     otp_code = models.CharField(max_length=6, blank=True, null=True)
+    transaction_pin = models.CharField(max_length=128, blank=True, null=True)
+    avatar = models.ImageField(upload_to="avatars/", blank=True, null=True)
+    kyc_level = models.CharField(max_length=20, choices=KYC_LEVEL_CHOICES, default=KYC_NONE)
 
     USERNAME_FIELD = 'username'
     REQUIRED_FIELDS = ['phone_number', 'email']

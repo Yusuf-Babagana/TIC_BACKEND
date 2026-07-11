@@ -20,10 +20,11 @@ def user_registered(sender, instance, created, raw, **kwargs):
 @receiver(post_save, sender=UserModel)
 def user_referral_notification(sender, instance, created, raw, **kwargs):
     if created and not raw:
-        if instance.referred_by.exists():
+        referral = getattr(instance, "referred_by", None)
+        if referral is not None:
             AdminNotification.objects.create(
                 notification_type="new_referral",
-                message=f"New referral: {instance.username} was referred by {instance.referred_by.first().referrer.username}",
+                message=f"New referral: {instance.username} was referred by {referral.referrer.username}",
                 link="/dashboard/referrals/",
             )
 
