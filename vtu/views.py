@@ -69,7 +69,13 @@ class UnifiedPurchaseView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
+        from users.utils import check_transaction_pin
         from wallet.models import Wallet, Transaction
+
+        user = request.user
+        pin_ok, pin_error = check_transaction_pin(user, request.data.get("transaction_pin"))
+        if not pin_ok:
+            return Response({"status": "false", "message": pin_error}, status=status.HTTP_400_BAD_REQUEST)
 
         serializer = UnifiedPurchaseSerializer(data=request.data)
         if not serializer.is_valid():
@@ -81,7 +87,6 @@ class UnifiedPurchaseView(APIView):
         plan_id = data["plan_id"]
         amount = data.get("amount")
         provider_name = data.get("provider", "")
-        user = request.user
 
         if category == "DATA":
             plan = get_data_plan(plan_id, provider_name)
@@ -467,13 +472,10 @@ class NellobytesCallbackView(APIView):
 
         order_id = data.get("orderid")
         request_id = data.get("requestid")
-        statuscode = data.get("statuscode")
-        orderstatus = data.get("orderstatus")
-        orderremark = data.get("orderremark")
 
         logger.info(
-            "Nellobytes callback: order_id=%s request_id=%s statuscode=%s orderstatus=%s remark=%s",
-            order_id, request_id, statuscode, orderstatus, orderremark,
+            "Nellobytes callback received: order_id=%s request_id=%s (fields beyond these are untrusted)",
+            order_id, request_id,
         )
 
         txn = None
@@ -489,7 +491,30 @@ class NellobytesCallbackView(APIView):
             )
             return Response({"status": "not_found"}, status=404)
 
-        outcome = NellobytesService.resolve_order_outcome(orderstatus, statuscode)
+        if txn.status != "PENDING":
+            # Already resolved — nothing to do. Also means we never re-derive an
+            # outcome from a stale/replayed callback.
+            return Response({"status": "already_resolved"}, status=200)
+
+        # Nellobytes doesn't sign this callback, so its orderstatus/statuscode
+        # fields are untrusted — anyone who knows their own order_id/reference
+        # (both are handed back in the purchase response) could otherwise POST
+        # a forged "FAILED" here to get refunded for an order that actually
+        # succeeded. Instead, use the callback purely as a "check now" trigger
+        # and resolve the real outcome via our own server-to-server query —
+        # the same call the reconciliation sweep uses.
+        try:
+            body = NellobytesService.query_order(order_id=txn.order_id)
+        except NellobytesError as e:
+            logger.error(
+                "Nellobytes callback: query_order failed for order_id=%s: %s",
+                txn.order_id, e,
+            )
+            return Response({"status": "query_failed"}, status=502)
+
+        outcome = NellobytesService.resolve_order_outcome(
+            body.get("orderstatus") or body.get("status"), body.get("statuscode")
+        )
         NellobytesService.apply_order_outcome(txn.pk, outcome)
 
         return Response({"status": "acknowledged"}, status=200)

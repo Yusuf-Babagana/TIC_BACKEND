@@ -209,18 +209,39 @@ CABLE_PLANS = [
 
 
 def get_data_plan(plan_id, network):
+    """
+    Reads DataPlan from the DB (not the DATA_PLANS list above) — the DB is what
+    seed_plans/sync_plans populate from DATA_PLANS and what admins subsequently
+    edit (price, is_active) via the dashboard, so purchases must respect those
+    edits instead of a frozen snapshot.
+    """
+    from .models import DataPlan
+
     plan_id = str(plan_id)
-    network = (network or "").strip().lower()
-    for p in DATA_PLANS:
-        if p["id"] == plan_id and p["provider"] == network:
-            return p
-    return None
+    network = (network or "").strip().upper()
+    plan = DataPlan.objects.filter(network=network, plan_id=plan_id, is_active=True).first()
+    if plan is None:
+        return None
+    return {
+        "id": plan.plan_id,
+        "provider": plan.network.lower(),
+        "name": plan.plan_name,
+        "price": plan.selling_price,
+    }
 
 
 def get_cable_plan(plan_id, provider):
+    """Reads CablePlan from the DB — see get_data_plan's note above."""
+    from .models import CablePlan
+
     plan_id = str(plan_id)
     provider = (provider or "").strip().upper()
-    for p in CABLE_PLANS:
-        if p["id"] == plan_id and p["provider"] == provider:
-            return p
-    return None
+    plan = CablePlan.objects.filter(provider_name=provider, plan_id=plan_id, is_active=True).first()
+    if plan is None:
+        return None
+    return {
+        "id": plan.plan_id,
+        "provider": plan.provider_name,
+        "name": plan.plan_name,
+        "price": plan.selling_price,
+    }
