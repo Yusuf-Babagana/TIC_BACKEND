@@ -1,3 +1,5 @@
+import logging
+
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 from django.contrib.auth import get_user_model
@@ -5,6 +7,42 @@ from django.contrib.auth import get_user_model
 from .models import AdminNotification
 
 UserModel = get_user_model()
+logger = logging.getLogger(__name__)
+
+
+@receiver(post_save, sender=AdminNotification)
+def email_admin_notification(sender, instance, created, **kwargs):
+    """
+    Mirrors every AdminNotification (new user, order, tailoring request,
+    deposit, purchase, referral) to an email inbox, in addition to the
+    in-app dashboard polling. Best-effort only — a failure here must never
+    break the request that triggered the notification (e.g. a checkout or
+    wallet debit), so it's wrapped and logged, never re-raised.
+    """
+    if not created:
+        return
+
+    from django.conf import settings
+
+    recipient = getattr(settings, "ADMIN_NOTIFICATION_EMAIL", "")
+    if not recipient:
+        return
+
+    from django.core.mail import send_mail
+
+    link = f"{settings.PUBLIC_BASE_URL}{instance.link}" if instance.link else ""
+    body = instance.message + (f"\n\n{link}" if link else "")
+
+    try:
+        send_mail(
+            subject=f"[TIC Admin] {instance.get_notification_type_display()}",
+            message=body,
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=[recipient],
+            fail_silently=False,
+        )
+    except Exception:
+        logger.exception("Failed to email admin notification id=%s", instance.pk)
 
 
 @receiver(post_save, sender=UserModel)

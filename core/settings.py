@@ -134,6 +134,11 @@ else:
     import warnings
     warnings.warn("BREVO_API_KEY not set — OTP emails will only print to the console.")
 
+# Every AdminNotification (new order, purchase, deposit, tailoring request,
+# user, referral) gets mirrored to this address, in addition to the in-app
+# dashboard polling. Set to "" to disable.
+ADMIN_NOTIFICATION_EMAIL = env("ADMIN_NOTIFICATION_EMAIL", default="topimaginationconcepts@gmail.com").strip()
+
 # ------------------------------------------------------------------
 # CheapDataHub
 # ------------------------------------------------------------------
