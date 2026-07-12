@@ -1,0 +1,285 @@
+{% extends "dashboard/base.html" %}
+
+{% block title %}Fabric Catalog - TIC Admin{% endblock %}
+{% block heading %}Fabric Catalog{% endblock %}
+
+{% block content %}
+<style>
+    .add-bar { background: var(--card); border-radius: var(--radius); padding: 1.1rem 1.5rem; border: 1px solid var(--border); box-shadow: var(--shadow); margin-bottom: 1.5rem; display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap; }
+    .add-bar input { padding: 0.4rem 0.6rem; border: 1px solid var(--border); border-radius: 6px; font-size: 0.85rem; }
+    .add-bar input:focus { outline: none; border-color: var(--primary-muted); }
+
+    .brand-card { background: var(--card); border-radius: var(--radius); border: 1px solid var(--border); box-shadow: var(--shadow); margin-bottom: 1rem; overflow: hidden; }
+    .brand-header { display: flex; align-items: center; gap: 0.75rem; padding: 1rem 1.25rem; cursor: pointer; }
+    .brand-header .name { font-weight: 700; font-size: 1rem; flex: 1; }
+    .brand-header .pos-badge { font-size: 0.7rem; color: var(--text-secondary); background: var(--highlight); padding: 0.15rem 0.5rem; border-radius: 999px; }
+    .brand-header .chevron { transition: transform .15s; color: var(--text-secondary); }
+    .brand-card.open .chevron { transform: rotate(90deg); }
+    .brand-body { display: none; border-top: 1px solid var(--border); padding: 1rem 1.25rem; }
+    .brand-card.open .brand-body { display: block; }
+
+    .grade-row { border: 1px solid var(--border); border-radius: 8px; margin-bottom: 0.75rem; overflow: hidden; }
+    .grade-header { display: flex; align-items: center; gap: 0.75rem; padding: 0.65rem 1rem; background: var(--highlight); cursor: pointer; }
+    .grade-header .name { font-weight: 600; font-size: 0.88rem; flex: 1; }
+    .grade-header .price { font-weight: 700; color: var(--accent); font-size: 0.88rem; }
+    .grade-body { display: none; padding: 0.85rem 1rem; }
+    .grade-row.open .grade-body { display: block; }
+    .grade-row.open .grade-header .chevron { transform: rotate(90deg); }
+    .grade-header .chevron { transition: transform .15s; color: var(--text-secondary); font-size: 0.8rem; }
+
+    .color-chip { display: inline-flex; align-items: center; gap: 0.5rem; background: var(--highlight); border: 1px solid var(--border); border-radius: 999px; padding: 0.25rem 0.75rem 0.25rem 0.25rem; margin: 0 0.4rem 0.4rem 0; font-size: 0.8rem; }
+    .color-chip .swatch { width: 24px; height: 24px; border-radius: 50%; object-fit: cover; background: var(--border); flex-shrink: 0; }
+    .color-chip .icon-btn { background: none; border: none; cursor: pointer; color: var(--text-secondary); font-size: 0.7rem; padding: 0 0.15rem; }
+    .color-chip .icon-btn:hover { color: var(--danger); }
+
+    .mini-form { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; margin-bottom: 0.85rem; }
+    .mini-form input { padding: 0.35rem 0.55rem; border: 1px solid var(--border); border-radius: 6px; font-size: 0.8rem; }
+    .actions-inline { display: flex; gap: 0.4rem; margin-left: auto; }
+</style>
+
+{% csrf_token %}
+
+<div class="add-bar">
+    <span style="font-weight:600;font-size:0.9rem;">➕ Add Fabric Brand</span>
+    <input type="text" id="newBrandName" placeholder="Brand name (e.g. Ankara)" style="flex:1;min-width:160px;">
+    <input type="number" id="newBrandPosition" placeholder="Position" value="0" style="width:90px;">
+    <button class="btn btn-success" onclick="addBrand()">Add</button>
+</div>
+
+{% for brand in brands %}
+<div class="brand-card" id="brand-{{ brand.id }}">
+    <div class="brand-header" onclick="toggleBrand({{ brand.id }})">
+        <span class="chevron">▶</span>
+        <span class="name">{{ brand.name }}</span>
+        <span class="pos-badge">pos {{ brand.position }}</span>
+        <div class="actions-inline" onclick="event.stopPropagation()">
+            <button class="btn btn-sm btn-outline" onclick="editBrand({{ brand.id }}, '{{ brand.name|escapejs }}', {{ brand.position }})">Edit</button>
+            <button class="btn btn-sm btn-danger" onclick="deleteBrand({{ brand.id }})">Delete</button>
+        </div>
+    </div>
+    <div class="brand-body">
+        <div class="mini-form">
+            <strong style="font-size:0.85rem;">➕ Add Grade:</strong>
+            <input type="text" id="newGradeName-{{ brand.id }}" placeholder="Grade name (e.g. Premium)">
+            <input type="number" id="newGradePrice-{{ brand.id }}" placeholder="Price (₦)" style="width:110px;">
+            <button class="btn btn-sm btn-success" onclick="addGrade({{ brand.id }})">Add Grade</button>
+        </div>
+
+        {% for grade in brand.grades.all %}
+        <div class="grade-row" id="grade-{{ grade.id }}">
+            <div class="grade-header" onclick="toggleGrade({{ grade.id }})">
+                <span class="chevron">▶</span>
+                <span class="name">{{ grade.name }}</span>
+                <span class="price">₦{{ grade.price }}</span>
+                <div class="actions-inline" onclick="event.stopPropagation()">
+                    <button class="btn btn-sm btn-outline" onclick="editGrade({{ grade.id }}, '{{ grade.name|escapejs }}', {{ grade.price }})">Edit</button>
+                    <button class="btn btn-sm btn-danger" onclick="deleteGrade({{ grade.id }})">Delete</button>
+                </div>
+            </div>
+            <div class="grade-body">
+                <div class="mini-form">
+                    <strong style="font-size:0.8rem;">➕ Add Color:</strong>
+                    <input type="text" id="newColorName-{{ grade.id }}" placeholder="Color name (e.g. Royal Blue)">
+                    <input type="file" id="newColorSwatch-{{ grade.id }}" accept="image/*">
+                    <button class="btn btn-sm btn-success" onclick="addColor({{ grade.id }})">Add Color</button>
+                </div>
+                <div>
+                    {% for color in grade.colors.all %}
+                    <span class="color-chip" id="color-{{ color.id }}">
+                        {% if color.swatch_image %}
+                        <img src="{{ color.swatch_image.url }}" class="swatch" alt="{{ color.name }}">
+                        {% else %}
+                        <span class="swatch"></span>
+                        {% endif %}
+                        {{ color.name }}
+                        <button class="icon-btn" title="Edit" onclick="editColor({{ color.id }}, '{{ color.name|escapejs }}')">✎</button>
+                        <button class="icon-btn" title="Delete" onclick="deleteColor({{ color.id }})">✕</button>
+                    </span>
+                    {% empty %}
+                    <span style="font-size:0.8rem;color:var(--text-tertiary);">No colors yet for this grade.</span>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+        {% empty %}
+        <div style="font-size:0.85rem;color:var(--text-tertiary);">No grades yet for this brand.</div>
+        {% endfor %}
+    </div>
+</div>
+{% empty %}
+<div class="empty">No fabric brands yet. Add your first brand above.</div>
+{% endfor %}
+
+<!-- Edit Brand Modal -->
+<div class="modal-overlay" id="editBrandModal">
+    <div class="modal-box">
+        <button class="modal-close" onclick="closeModal('editBrandModal')">&times;</button>
+        <h3>Edit Fabric Brand</h3>
+        <form id="editBrandForm">
+            <input type="hidden" id="editBrandId">
+            <div class="form-group"><label>Name</label><input type="text" id="editBrandName" required></div>
+            <div class="form-group"><label>Position</label><input type="number" id="editBrandPosition" required></div>
+            <button type="submit" class="btn btn-primary" style="width:100%;padding:0.6rem;">Save</button>
+        </form>
+    </div>
+</div>
+
+<!-- Edit Grade Modal -->
+<div class="modal-overlay" id="editGradeModal">
+    <div class="modal-box">
+        <button class="modal-close" onclick="closeModal('editGradeModal')">&times;</button>
+        <h3>Edit Fabric Grade</h3>
+        <form id="editGradeForm">
+            <input type="hidden" id="editGradeId">
+            <div class="form-group"><label>Name</label><input type="text" id="editGradeName" required></div>
+            <div class="form-group"><label>Price (₦)</label><input type="number" id="editGradePrice" required></div>
+            <button type="submit" class="btn btn-primary" style="width:100%;padding:0.6rem;">Save</button>
+        </form>
+    </div>
+</div>
+
+<!-- Edit Color Modal -->
+<div class="modal-overlay" id="editColorModal">
+    <div class="modal-box">
+        <button class="modal-close" onclick="closeModal('editColorModal')">&times;</button>
+        <h3>Edit Fabric Color</h3>
+        <form id="editColorForm">
+            <input type="hidden" id="editColorId">
+            <div class="form-group"><label>Name</label><input type="text" id="editColorName" required></div>
+            <div class="form-group"><label>New Swatch Photo (leave blank to keep current)</label><input type="file" id="editColorSwatch" accept="image/*"></div>
+            <button type="submit" class="btn btn-primary" style="width:100%;padding:0.6rem;">Save</button>
+        </form>
+    </div>
+</div>
+
+<script>
+function toggleBrand(id) { document.getElementById('brand-' + id).classList.toggle('open'); }
+function toggleGrade(id) { document.getElementById('grade-' + id).classList.toggle('open'); }
+
+function addBrand() {
+    const name = document.getElementById('newBrandName').value.trim();
+    const position = document.getElementById('newBrandPosition').value.trim() || '0';
+    if (!name) { showToast('Brand name is required', true); return; }
+    const form = new FormData();
+    form.append('csrfmiddlewaretoken', getCSRF());
+    form.append('name', name);
+    form.append('position', position);
+    fetch('/dashboard/fabrics/brands/create/', { method: 'POST', body: form })
+        .then(r => r.json()).then(d => { if (d.error) { showToast(d.error, true); return; } showToast(d.message); setTimeout(() => location.reload(), 800); })
+        .catch(() => showToast('Failed to add brand', true));
+}
+
+function editBrand(id, name, position) {
+    document.getElementById('editBrandId').value = id;
+    document.getElementById('editBrandName').value = name;
+    document.getElementById('editBrandPosition').value = position;
+    openModal('editBrandModal');
+}
+document.getElementById('editBrandForm')?.addEventListener('submit', function(e) {
+    e.preventDefault();
+    const id = document.getElementById('editBrandId').value;
+    const form = new FormData();
+    form.append('csrfmiddlewaretoken', getCSRF());
+    form.append('name', document.getElementById('editBrandName').value.trim());
+    form.append('position', document.getElementById('editBrandPosition').value.trim());
+    fetch('/dashboard/fabrics/brands/' + id + '/update/', { method: 'POST', body: form })
+        .then(r => r.json()).then(d => { if (d.error) { showToast(d.error, true); return; } closeModal('editBrandModal'); showToast(d.message); setTimeout(() => location.reload(), 800); })
+        .catch(() => showToast('Update failed', true));
+});
+
+function deleteBrand(id) {
+    if (!confirm('Delete this brand and all its grades/colors?')) return;
+    const form = new FormData();
+    form.append('csrfmiddlewaretoken', getCSRF());
+    fetch('/dashboard/fabrics/brands/' + id + '/delete/', { method: 'POST', body: form })
+        .then(r => r.json()).then(d => { showToast(d.message || d.error, !!d.error); setTimeout(() => location.reload(), 800); })
+        .catch(() => showToast('Delete failed', true));
+}
+
+function addGrade(brandId) {
+    const name = document.getElementById('newGradeName-' + brandId).value.trim();
+    const price = document.getElementById('newGradePrice-' + brandId).value.trim();
+    if (!name) { showToast('Grade name is required', true); return; }
+    if (!price) { showToast('Price is required', true); return; }
+    const form = new FormData();
+    form.append('csrfmiddlewaretoken', getCSRF());
+    form.append('brand_id', brandId);
+    form.append('name', name);
+    form.append('price', price);
+    fetch('/dashboard/fabrics/grades/create/', { method: 'POST', body: form })
+        .then(r => r.json()).then(d => { if (d.error) { showToast(d.error, true); return; } showToast(d.message); setTimeout(() => location.reload(), 800); })
+        .catch(() => showToast('Failed to add grade', true));
+}
+
+function editGrade(id, name, price) {
+    document.getElementById('editGradeId').value = id;
+    document.getElementById('editGradeName').value = name;
+    document.getElementById('editGradePrice').value = price;
+    openModal('editGradeModal');
+}
+document.getElementById('editGradeForm')?.addEventListener('submit', function(e) {
+    e.preventDefault();
+    const id = document.getElementById('editGradeId').value;
+    const form = new FormData();
+    form.append('csrfmiddlewaretoken', getCSRF());
+    form.append('name', document.getElementById('editGradeName').value.trim());
+    form.append('price', document.getElementById('editGradePrice').value.trim());
+    fetch('/dashboard/fabrics/grades/' + id + '/update/', { method: 'POST', body: form })
+        .then(r => r.json()).then(d => { if (d.error) { showToast(d.error, true); return; } closeModal('editGradeModal'); showToast(d.message); setTimeout(() => location.reload(), 800); })
+        .catch(() => showToast('Update failed', true));
+});
+
+function deleteGrade(id) {
+    if (!confirm('Delete this grade and all its colors?')) return;
+    const form = new FormData();
+    form.append('csrfmiddlewaretoken', getCSRF());
+    fetch('/dashboard/fabrics/grades/' + id + '/delete/', { method: 'POST', body: form })
+        .then(r => r.json()).then(d => { showToast(d.message || d.error, !!d.error); setTimeout(() => location.reload(), 800); })
+        .catch(() => showToast('Delete failed', true));
+}
+
+function addColor(gradeId) {
+    const name = document.getElementById('newColorName-' + gradeId).value.trim();
+    const fileInput = document.getElementById('newColorSwatch-' + gradeId);
+    const file = fileInput.files[0];
+    if (!name) { showToast('Color name is required', true); return; }
+    const form = new FormData();
+    form.append('csrfmiddlewaretoken', getCSRF());
+    form.append('grade_id', gradeId);
+    form.append('name', name);
+    if (file) form.append('swatch_image', file);
+    fetch('/dashboard/fabrics/colors/create/', { method: 'POST', body: form })
+        .then(r => r.json()).then(d => { if (d.error) { showToast(d.error, true); return; } showToast(d.message); setTimeout(() => location.reload(), 800); })
+        .catch(() => showToast('Failed to add color', true));
+}
+
+function editColor(id, name) {
+    document.getElementById('editColorId').value = id;
+    document.getElementById('editColorName').value = name;
+    document.getElementById('editColorSwatch').value = '';
+    openModal('editColorModal');
+}
+document.getElementById('editColorForm')?.addEventListener('submit', function(e) {
+    e.preventDefault();
+    const id = document.getElementById('editColorId').value;
+    const fileInput = document.getElementById('editColorSwatch');
+    const file = fileInput.files[0];
+    const form = new FormData();
+    form.append('csrfmiddlewaretoken', getCSRF());
+    form.append('name', document.getElementById('editColorName').value.trim());
+    if (file) form.append('swatch_image', file);
+    fetch('/dashboard/fabrics/colors/' + id + '/update/', { method: 'POST', body: form })
+        .then(r => r.json()).then(d => { if (d.error) { showToast(d.error, true); return; } closeModal('editColorModal'); showToast(d.message); setTimeout(() => location.reload(), 800); })
+        .catch(() => showToast('Update failed', true));
+});
+
+function deleteColor(id) {
+    if (!confirm('Delete this color?')) return;
+    const form = new FormData();
+    form.append('csrfmiddlewaretoken', getCSRF());
+    fetch('/dashboard/fabrics/colors/' + id + '/delete/', { method: 'POST', body: form })
+        .then(r => r.json()).then(d => { showToast(d.message || d.error, !!d.error); setTimeout(() => location.reload(), 800); })
+        .catch(() => showToast('Delete failed', true));
+}
+</script>
+{% endblock %}

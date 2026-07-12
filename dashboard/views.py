@@ -9,12 +9,20 @@ from django.core.management import call_command
 from django.db.models import Prefetch, Sum
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.utils import timezone
 from django.views.generic import ListView, TemplateView
 from django.views import View
 
 from django.contrib.auth import get_user_model
 
-from fashion.models import CustomStyleRequest, Notification, UserMeasurement
+from fashion.models import (
+    CustomStyleRequest,
+    FabricBrand,
+    FabricColor,
+    FabricGrade,
+    Notification,
+    UserMeasurement,
+)
 from marketing.models import Flyer as FlyerModel, MarketingGallery as MarketingGalleryModel, Order as OrderModel
 from users.models import Referral, ReferralConfig
 from vtu.models import DataPlan, Provider
@@ -198,6 +206,9 @@ class DashboardTailoringUpdateView(LoginRequiredMixin, View):
             except Exception:
                 return JsonResponse({"error": "Invalid price quote"}, status=400)
 
+        if new_status == "quoted" and old_status != "quoted":
+            order.quote_expires_at = timezone.now() + CustomStyleRequest.QUOTE_VALIDITY
+
         order.save()
 
         Notification.objects.create(
@@ -207,6 +218,144 @@ class DashboardTailoringUpdateView(LoginRequiredMixin, View):
         )
 
         return JsonResponse({"status": new_status, "message": "Order updated"})
+
+
+class DashboardFabricCatalogView(LoginRequiredMixin, TemplateView):
+    template_name = "dashboard/fabrics.html"
+    login_url = "/dashboard/login/"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["brands"] = FabricBrand.objects.prefetch_related("grades__colors").all()
+        return context
+
+
+class DashboardFabricBrandCreateView(LoginRequiredMixin, View):
+    login_url = "/dashboard/login/"
+
+    def post(self, request):
+        name = request.POST.get("name", "").strip()
+        position = request.POST.get("position", "0").strip()
+        if not name:
+            return JsonResponse({"error": "Name is required"}, status=400)
+        try:
+            position = int(position) if position else 0
+        except ValueError:
+            return JsonResponse({"error": "Invalid position"}, status=400)
+        FabricBrand.objects.create(name=name, position=position)
+        return JsonResponse({"message": "Fabric brand added"})
+
+
+class DashboardFabricBrandUpdateView(LoginRequiredMixin, View):
+    login_url = "/dashboard/login/"
+
+    def post(self, request, pk):
+        brand = get_object_or_404(FabricBrand, pk=pk)
+        name = request.POST.get("name", "").strip()
+        position = request.POST.get("position", "").strip()
+        if name:
+            brand.name = name
+        if position:
+            try:
+                brand.position = int(position)
+            except ValueError:
+                return JsonResponse({"error": "Invalid position"}, status=400)
+        brand.save()
+        return JsonResponse({"message": "Fabric brand updated"})
+
+
+class DashboardFabricBrandDeleteView(LoginRequiredMixin, View):
+    login_url = "/dashboard/login/"
+
+    def post(self, request, pk):
+        brand = get_object_or_404(FabricBrand, pk=pk)
+        brand.delete()
+        return JsonResponse({"message": "Fabric brand deleted"})
+
+
+class DashboardFabricGradeCreateView(LoginRequiredMixin, View):
+    login_url = "/dashboard/login/"
+
+    def post(self, request):
+        brand_id = request.POST.get("brand_id")
+        name = request.POST.get("name", "").strip()
+        price = request.POST.get("price", "").strip()
+        brand = get_object_or_404(FabricBrand, pk=brand_id)
+        if not name:
+            return JsonResponse({"error": "Name is required"}, status=400)
+        if not price:
+            return JsonResponse({"error": "Price is required"}, status=400)
+        try:
+            price = int(price)
+        except ValueError:
+            return JsonResponse({"error": "Invalid price"}, status=400)
+        FabricGrade.objects.create(brand=brand, name=name, price=price)
+        return JsonResponse({"message": "Fabric grade added"})
+
+
+class DashboardFabricGradeUpdateView(LoginRequiredMixin, View):
+    login_url = "/dashboard/login/"
+
+    def post(self, request, pk):
+        grade = get_object_or_404(FabricGrade, pk=pk)
+        name = request.POST.get("name", "").strip()
+        price = request.POST.get("price", "").strip()
+        if name:
+            grade.name = name
+        if price:
+            try:
+                grade.price = int(price)
+            except ValueError:
+                return JsonResponse({"error": "Invalid price"}, status=400)
+        grade.save()
+        return JsonResponse({"message": "Fabric grade updated"})
+
+
+class DashboardFabricGradeDeleteView(LoginRequiredMixin, View):
+    login_url = "/dashboard/login/"
+
+    def post(self, request, pk):
+        grade = get_object_or_404(FabricGrade, pk=pk)
+        grade.delete()
+        return JsonResponse({"message": "Fabric grade deleted"})
+
+
+class DashboardFabricColorCreateView(LoginRequiredMixin, View):
+    login_url = "/dashboard/login/"
+
+    def post(self, request):
+        grade_id = request.POST.get("grade_id")
+        name = request.POST.get("name", "").strip()
+        swatch_image = request.FILES.get("swatch_image")
+        grade = get_object_or_404(FabricGrade, pk=grade_id)
+        if not name:
+            return JsonResponse({"error": "Name is required"}, status=400)
+        FabricColor.objects.create(grade=grade, name=name, swatch_image=swatch_image)
+        return JsonResponse({"message": "Fabric color added"})
+
+
+class DashboardFabricColorUpdateView(LoginRequiredMixin, View):
+    login_url = "/dashboard/login/"
+
+    def post(self, request, pk):
+        color = get_object_or_404(FabricColor, pk=pk)
+        name = request.POST.get("name", "").strip()
+        swatch_image = request.FILES.get("swatch_image")
+        if name:
+            color.name = name
+        if swatch_image:
+            color.swatch_image = swatch_image
+        color.save()
+        return JsonResponse({"message": "Fabric color updated"})
+
+
+class DashboardFabricColorDeleteView(LoginRequiredMixin, View):
+    login_url = "/dashboard/login/"
+
+    def post(self, request, pk):
+        color = get_object_or_404(FabricColor, pk=pk)
+        color.delete()
+        return JsonResponse({"message": "Fabric color deleted"})
 
 
 class DashboardPlanToggleView(LoginRequiredMixin, View):
