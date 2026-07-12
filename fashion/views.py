@@ -91,13 +91,14 @@ class CustomTailoringView(APIView):
     parser_classes = [MultiPartParser, FormParser]
 
     def post(self, request):
-        from .models import FabricGrade
+        from .models import FabricColor, FabricGrade
 
         user = request.user
         description = request.data.get("description")
         reference_image = request.FILES.get("reference_image")
         delivery_address = request.data.get("delivery_address", "")
         fabric_grade_id = request.data.get("fabric_grade")
+        fabric_color_id = request.data.get("fabric_color")
 
         if not description:
             return Response(
@@ -116,12 +117,27 @@ class CustomTailoringView(APIView):
                 )
             price_quote = fabric_grade.price
 
+        fabric_color = None
+        if fabric_color_id:
+            fabric_color = FabricColor.objects.filter(pk=fabric_color_id).first()
+            if fabric_color is None:
+                return Response(
+                    {"error": f"Unknown fabric_color: {fabric_color_id}"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            if fabric_grade is None or fabric_color.grade_id != fabric_grade.id:
+                return Response(
+                    {"error": "fabric_color does not belong to the selected fabric_grade"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
         style_request = CustomStyleRequest.objects.create(
             user=user,
             description=description,
             reference_image=reference_image,
             delivery_address=delivery_address,
             fabric_grade=fabric_grade,
+            fabric_color=fabric_color,
             price_quote=price_quote,
         )
 

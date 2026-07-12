@@ -56,6 +56,18 @@ class FabricGrade(models.Model):
         return f"{self.brand.name} - {self.name}"
 
 
+class FabricColor(models.Model):
+    grade = models.ForeignKey(FabricGrade, on_delete=models.CASCADE, related_name="colors")
+    name = models.CharField(max_length=50)
+    swatch_image = models.ImageField(upload_to="fabric_colors/", blank=True, null=True)
+
+    class Meta:
+        ordering = ["grade", "name"]
+
+    def __str__(self):
+        return f"{self.grade} - {self.name}"
+
+
 class CustomStyleRequest(models.Model):
     # For FR-17 and FR-19: Custom sewing and reference images
     STATUS_CHOICES = [
@@ -77,6 +89,9 @@ class CustomStyleRequest(models.Model):
     price_quote = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     fabric_grade = models.ForeignKey(
         FabricGrade, on_delete=models.SET_NULL, null=True, blank=True, related_name="requests"
+    )
+    fabric_color = models.ForeignKey(
+        FabricColor, on_delete=models.SET_NULL, null=True, blank=True, related_name="requests"
     )
     delivery_address = models.TextField(blank=True, default="")
     quote_expires_at = models.DateTimeField(null=True, blank=True)

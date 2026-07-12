@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Category, FabricBrand, FabricGrade, Notification, Product, UserMeasurement, CustomStyleRequest
+from .models import Category, FabricBrand, FabricColor, FabricGrade, Notification, Product, UserMeasurement, CustomStyleRequest
 
 class ProductSerializer(serializers.ModelSerializer):
     class Meta:
@@ -21,10 +21,18 @@ class UserMeasurementSerializer(serializers.ModelSerializer):
         # We don't include 'user' here as it's handled by the view via request.user
 
 
+class FabricColorSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = FabricColor
+        fields = ['id', 'name', 'swatch_image']
+
+
 class FabricGradeSerializer(serializers.ModelSerializer):
+    colors = FabricColorSerializer(many=True, read_only=True)
+
     class Meta:
         model = FabricGrade
-        fields = ['id', 'name', 'price']
+        fields = ['id', 'name', 'price', 'colors']
 
 
 class FabricBrandSerializer(serializers.ModelSerializer):
@@ -40,9 +48,22 @@ class CustomStyleRequestSerializer(serializers.ModelSerializer):
         model = CustomStyleRequest
         fields = [
             'id', 'user', 'description', 'reference_image', 'status', 'price_quote',
-            'fabric_grade', 'delivery_address', 'quote_expires_at', 'created_at',
+            'fabric_grade', 'fabric_color', 'delivery_address', 'quote_expires_at', 'created_at',
         ]
         read_only_fields = ['user', 'status', 'price_quote', 'quote_expires_at']
+
+    def validate(self, attrs):
+        fabric_grade = attrs.get('fabric_grade')
+        fabric_color = attrs.get('fabric_color')
+        if fabric_color and fabric_grade and fabric_color.grade_id != fabric_grade.id:
+            raise serializers.ValidationError(
+                {"fabric_color": "This color does not belong to the selected fabric grade."}
+            )
+        if fabric_color and not fabric_grade:
+            raise serializers.ValidationError(
+                {"fabric_color": "fabric_grade is required when fabric_color is set."}
+            )
+        return attrs
 
 class CustomStyleRequestUpdateSerializer(serializers.ModelSerializer):
     class Meta:

@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Category, FabricBrand, FabricGrade, Notification, Product, UserMeasurement, CustomStyleRequest
+from .models import Category, FabricBrand, FabricColor, FabricGrade, Notification, Product, UserMeasurement, CustomStyleRequest
 
 @admin.register(Category)
 class CategoryAdmin(admin.ModelAdmin):
@@ -27,10 +27,20 @@ class FabricBrandAdmin(admin.ModelAdmin):
     ordering = ('position',)
     inlines = [FabricGradeInline]
 
+class FabricColorInline(admin.TabularInline):
+    model = FabricColor
+    extra = 1
+
 @admin.register(FabricGrade)
 class FabricGradeAdmin(admin.ModelAdmin):
     list_display = ('id', 'brand', 'name', 'price')
     list_filter = ('brand',)
+    inlines = [FabricColorInline]
+
+@admin.register(FabricColor)
+class FabricColorAdmin(admin.ModelAdmin):
+    list_display = ('id', 'grade', 'name', 'swatch_image')
+    list_filter = ('grade__brand',)
 
 @admin.register(CustomStyleRequest)
 class CustomStyleRequestAdmin(admin.ModelAdmin):
