@@ -29,6 +29,7 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     "corsheaders",
+    "anymail",
     "users",
     "wallet",
     "vtu",
@@ -117,22 +118,21 @@ MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
 
 # ------------------------------------------------------------------
-# Email (Gmail SMTP) — used to deliver OTP codes
+# Email (Brevo API via Anymail) — used to deliver OTP codes.
+# Raw SMTP doesn't work on PythonAnywhere's free tier (their proxy only
+# tunnels HTTPS, not arbitrary TCP sockets) — Brevo's HTTP API does.
 # ------------------------------------------------------------------
-EMAIL_HOST_USER = env("EMAIL_HOST_USER", default="").strip()
-EMAIL_HOST_PASSWORD = env("EMAIL_HOST_PASSWORD", default="").strip()
-DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default=EMAIL_HOST_USER or "no-reply@ticbackend.local")
+BREVO_API_KEY = env("BREVO_API_KEY", default="").strip()
+DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default="no-reply@ticbackend.local")
 
-if EMAIL_HOST_USER and EMAIL_HOST_PASSWORD:
-    EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
-    EMAIL_HOST = "smtp.gmail.com"
-    EMAIL_PORT = 587
-    EMAIL_USE_TLS = True
+if BREVO_API_KEY:
+    EMAIL_BACKEND = "anymail.backends.brevo.EmailBackend"
+    ANYMAIL = {"BREVO_API_KEY": BREVO_API_KEY}
 else:
-    # No SMTP creds configured yet — OTPs are printed to the console/log instead of failing outright.
+    # No API key configured yet — OTPs are printed to the console/log instead of failing outright.
     EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
     import warnings
-    warnings.warn("EMAIL_HOST_USER/EMAIL_HOST_PASSWORD not set — OTP emails will only print to the console.")
+    warnings.warn("BREVO_API_KEY not set — OTP emails will only print to the console.")
 
 # ------------------------------------------------------------------
 # CheapDataHub
