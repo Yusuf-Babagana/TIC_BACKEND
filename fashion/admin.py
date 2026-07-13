@@ -44,15 +44,24 @@ class FabricColorAdmin(admin.ModelAdmin):
 
 @admin.register(CustomStyleRequest)
 class CustomStyleRequestAdmin(admin.ModelAdmin):
-    list_display = ('id', 'user', 'status', 'price_quote', 'fabric_grade', 'fabric_color', 'quote_expires_at', 'created_at')
+    list_display = (
+        'id', 'user', 'status', 'fabric_fee', 'tailoring_fee', 'price_quote',
+        'fabric_grade', 'fabric_color', 'quote_expires_at', 'created_at',
+    )
     list_filter = ('status', 'created_at')
     search_fields = ('user__username', 'user__email', 'description')
-    readonly_fields = ('created_at', 'quote_expires_at')
+    readonly_fields = ('created_at', 'quote_expires_at', 'price_quote')
 
     def save_model(self, request, obj, form, change):
+        from decimal import Decimal
+
         if change and 'status' in form.changed_data and obj.status == 'quoted':
             from django.utils import timezone
             obj.quote_expires_at = timezone.now() + CustomStyleRequest.QUOTE_VALIDITY
+
+        if obj.fabric_fee is not None or obj.tailoring_fee is not None:
+            obj.price_quote = (obj.fabric_fee or Decimal('0')) + (obj.tailoring_fee or Decimal('0'))
+
         super().save_model(request, obj, form, change)
 
 @admin.register(Notification)

@@ -48,9 +48,12 @@ class CustomStyleRequestSerializer(serializers.ModelSerializer):
         model = CustomStyleRequest
         fields = [
             'id', 'user', 'description', 'reference_image', 'status', 'price_quote',
-            'fabric_grade', 'fabric_color', 'delivery_address', 'quote_expires_at', 'created_at',
+            'fabric_fee', 'tailoring_fee', 'fabric_grade', 'fabric_color',
+            'delivery_address', 'quote_expires_at', 'created_at',
         ]
-        read_only_fields = ['user', 'status', 'price_quote', 'quote_expires_at']
+        read_only_fields = [
+            'user', 'status', 'price_quote', 'fabric_fee', 'tailoring_fee', 'quote_expires_at',
+        ]
 
     def validate(self, attrs):
         fabric_grade = attrs.get('fabric_grade')
@@ -68,16 +71,25 @@ class CustomStyleRequestSerializer(serializers.ModelSerializer):
 class CustomStyleRequestUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = CustomStyleRequest
-        fields = ['status', 'price_quote', 'quote_expires_at']
-        read_only_fields = ['quote_expires_at']
+        fields = ['status', 'fabric_fee', 'tailoring_fee', 'price_quote', 'quote_expires_at']
+        read_only_fields = ['price_quote', 'quote_expires_at']
 
     def update(self, instance, validated_data):
+        from decimal import Decimal
+
         from django.utils import timezone
 
         new_status = validated_data.get('status', instance.status)
         if new_status == 'quoted' and instance.status != 'quoted':
             instance.quote_expires_at = timezone.now() + CustomStyleRequest.QUOTE_VALIDITY
-        return super().update(instance, validated_data)
+
+        instance = super().update(instance, validated_data)
+
+        if instance.fabric_fee is not None or instance.tailoring_fee is not None:
+            instance.price_quote = (instance.fabric_fee or Decimal('0')) + (instance.tailoring_fee or Decimal('0'))
+            instance.save(update_fields=['price_quote'])
+
+        return instance
 
 class NotificationSerializer(serializers.ModelSerializer):
     class Meta:

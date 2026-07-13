@@ -90,10 +90,11 @@ class CustomStyleRequestCreateView(generics.CreateAPIView):
 
     def perform_create(self, serializer):
         # Link the request to the logged-in user; if a fabric_grade was picked,
-        # its price seeds price_quote as a starting point the admin can adjust.
+        # its price seeds fabric_fee (and price_quote, since tailoring_fee is
+        # still unset) as a starting point the admin adjusts when quoting.
         fabric_grade = serializer.validated_data.get("fabric_grade")
-        price_quote = fabric_grade.price if fabric_grade else None
-        serializer.save(user=self.request.user, price_quote=price_quote)
+        fabric_fee = fabric_grade.price if fabric_grade else None
+        serializer.save(user=self.request.user, fabric_fee=fabric_fee, price_quote=fabric_fee)
         _send_tailoring_confirmation(serializer.instance)
 
 class MyOrdersListView(generics.ListAPIView):
@@ -139,7 +140,7 @@ class CustomTailoringView(APIView):
             )
 
         fabric_grade = None
-        price_quote = None
+        fabric_fee = None
         if fabric_grade_id:
             fabric_grade = FabricGrade.objects.filter(pk=fabric_grade_id).first()
             if fabric_grade is None:
@@ -147,7 +148,7 @@ class CustomTailoringView(APIView):
                     {"error": f"Unknown fabric_grade: {fabric_grade_id}"},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
-            price_quote = fabric_grade.price
+            fabric_fee = fabric_grade.price
 
         fabric_color = None
         if fabric_color_id:
@@ -170,7 +171,8 @@ class CustomTailoringView(APIView):
             delivery_address=delivery_address,
             fabric_grade=fabric_grade,
             fabric_color=fabric_color,
-            price_quote=price_quote,
+            fabric_fee=fabric_fee,
+            price_quote=fabric_fee,
         )
         _send_tailoring_confirmation(style_request)
 

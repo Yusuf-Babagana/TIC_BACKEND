@@ -86,7 +86,12 @@ class CustomStyleRequest(models.Model):
     description = models.TextField()
     reference_image = models.ImageField(upload_to='custom_requests/')
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    # price_quote is always fabric_fee + tailoring_fee — kept as a stored,
+    # authoritative total (rather than a computed property) since it's what
+    # PayForTailoringView actually charges against.
     price_quote = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    fabric_fee = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    tailoring_fee = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     fabric_grade = models.ForeignKey(
         FabricGrade, on_delete=models.SET_NULL, null=True, blank=True, related_name="requests"
     )

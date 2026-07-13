@@ -181,7 +181,8 @@ class DashboardTailoringUpdateView(LoginRequiredMixin, View):
     def post(self, request, pk):
         order = get_object_or_404(CustomStyleRequest, pk=pk)
         new_status = request.POST.get("status")
-        price_quote = request.POST.get("price_quote")
+        fabric_fee = request.POST.get("fabric_fee")
+        tailoring_fee = request.POST.get("tailoring_fee")
 
         STATUS_FLOW = {
             "pending": ["quoted"],
@@ -202,11 +203,20 @@ class DashboardTailoringUpdateView(LoginRequiredMixin, View):
         old_status = order.status
         order.status = new_status
 
-        if new_status == "quoted" and price_quote:
+        if new_status == "quoted":
+            if fabric_fee in (None, "") or tailoring_fee in (None, ""):
+                return JsonResponse(
+                    {"error": "Both fabric_fee and tailoring_fee are required"}, status=400
+                )
             try:
-                order.price_quote = Decimal(price_quote)
+                fabric_fee_val = Decimal(fabric_fee)
+                tailoring_fee_val = Decimal(tailoring_fee)
             except Exception:
-                return JsonResponse({"error": "Invalid price quote"}, status=400)
+                return JsonResponse({"error": "Invalid fee amount"}, status=400)
+
+            order.fabric_fee = fabric_fee_val
+            order.tailoring_fee = tailoring_fee_val
+            order.price_quote = fabric_fee_val + tailoring_fee_val
 
         if new_status == "quoted" and old_status != "quoted":
             order.quote_expires_at = timezone.now() + CustomStyleRequest.QUOTE_VALIDITY

@@ -75,7 +75,14 @@
                 {% endif %}
             </td>
             <td><span class="badge {{ req.status }}">{{ req.get_status_display }}</span></td>
-            <td>{% if req.price_quote %}{{ req.price_quote|floatformat:2 }}{% else %}—{% endif %}</td>
+            <td>
+                {% if req.price_quote %}
+                <div style="font-weight:700;">{{ req.price_quote|floatformat:2 }}</div>
+                {% if req.fabric_fee is not None or req.tailoring_fee is not None %}
+                <div style="font-size:0.7rem;color:var(--text-secondary);">Fabric {{ req.fabric_fee|default:"0"|floatformat:2 }} + Tailoring {{ req.tailoring_fee|default:"0"|floatformat:2 }}</div>
+                {% endif %}
+                {% else %}—{% endif %}
+            </td>
             <td>
                 {% if req.delivery_address %}
                 <span style="font-size:0.8rem;">{{ req.delivery_address|truncatechars:30 }}</span>
@@ -136,15 +143,23 @@
     <div class="modal-box">
         <button class="modal-close" onclick="closeModal('acceptModal')">&times;</button>
         <h3>Set Price Quote</h3>
-        <p class="sub">Set a price and notify the customer to make payment</p>
+        <p class="sub">Set the fabric and tailoring fees separately — the customer sees both, and the total is what they pay.</p>
         <form id="acceptForm" method="post">
             {% csrf_token %}
             <input type="hidden" name="status" value="quoted">
             <div class="form-group">
-                <label>Price Quote (₦)</label>
-                <input type="number" name="price_quote" step="0.01" min="0" required>
+                <label>Fabric Fee (₦)</label>
+                <input type="number" name="fabric_fee" id="acceptFabricFee" step="0.01" min="0" required oninput="updateAcceptTotal()">
             </div>
-            <button type="submit" class="btn btn-primary" style="width:100%;padding:0.6rem;">Save Price & Notify Customer</button>
+            <div class="form-group">
+                <label>Tailoring Fee (₦)</label>
+                <input type="number" name="tailoring_fee" id="acceptTailoringFee" step="0.01" min="0" required oninput="updateAcceptTotal()">
+            </div>
+            <div class="form-group">
+                <label>Total Quote (₦)</label>
+                <input type="text" id="acceptTotalDisplay" readonly style="background:var(--highlight);font-weight:700;">
+            </div>
+            <button type="submit" class="btn btn-primary" style="width:100%;padding:0.6rem;">Save Quote & Notify Customer</button>
         </form>
     </div>
 </div>
@@ -237,10 +252,26 @@ function showFullDesc(orderId) {
     {% endfor %}
 }
 
+const fabricFeeDefaults = {
+    {% for req in requests %}
+    {{ req.id }}: {% if req.fabric_fee is not None %}{{ req.fabric_fee }}{% elif req.fabric_grade %}{{ req.fabric_grade.price }}{% else %}null{% endif %},
+    {% endfor %}
+};
+
 function acceptOrder(orderId) {
     const form = document.getElementById('acceptForm');
     form.action = '/dashboard/tailoring/' + orderId + '/update/';
+    const defaultFabricFee = fabricFeeDefaults[orderId];
+    document.getElementById('acceptFabricFee').value = (defaultFabricFee !== null && defaultFabricFee !== undefined) ? defaultFabricFee : 0;
+    document.getElementById('acceptTailoringFee').value = '';
+    updateAcceptTotal();
     openModal('acceptModal');
+}
+
+function updateAcceptTotal() {
+    const f = parseFloat(document.getElementById('acceptFabricFee').value) || 0;
+    const t = parseFloat(document.getElementById('acceptTailoringFee').value) || 0;
+    document.getElementById('acceptTotalDisplay').value = '₦' + (f + t).toFixed(2);
 }
 
 function updateStatus(orderId, status) {
