@@ -10,6 +10,9 @@
     .measurement-item { background: #f8fafc; padding: 0.75rem; border-radius: 8px; text-align: center; }
     .measurement-item .label { font-size: 0.7rem; color: var(--text-secondary); text-transform: uppercase; font-weight: 600; letter-spacing: 0.04em; }
     .measurement-item .value { font-size: 1.2rem; font-weight: 700; color: var(--text); }
+    .fabric-swatch { width: 22px; height: 22px; border-radius: 50%; object-fit: cover; border: 1px solid var(--border); vertical-align: middle; margin-right: 0.35rem; }
+    .fabric-info { font-size: 0.78rem; line-height: 1.4; }
+    .fabric-info .grade-name { font-weight: 600; }
 </style>
 
 <div class="filter-bar">
@@ -29,6 +32,7 @@
             <th>User</th>
             <th>Description</th>
             <th>Image</th>
+            <th>Fabric</th>
             <th>Status</th>
             <th>Amount (₦)</th>
             <th>Delivery Address</th>
@@ -51,6 +55,23 @@
                 <img src="{{ req.reference_image.url }}" class="img-thumb" onclick="openLightbox('{{ req.reference_image.url }}')" alt="Reference">
                 {% else %}
                 <span style="color:#999;">No image</span>
+                {% endif %}
+            </td>
+            <td class="fabric-info">
+                {% if req.fabric_grade %}
+                <div class="grade-name">{{ req.fabric_grade.brand.name }} - {{ req.fabric_grade.name }}</div>
+                {% if req.fabric_color %}
+                <div>
+                    {% if req.fabric_color.swatch_image %}
+                    <img src="{{ req.fabric_color.swatch_image.url }}" class="fabric-swatch" onclick="openLightbox('{{ req.fabric_color.swatch_image.url }}')" alt="{{ req.fabric_color.name }}">
+                    {% endif %}
+                    {{ req.fabric_color.name }}
+                </div>
+                {% else %}
+                <div style="color:var(--text-tertiary);">No color picked</div>
+                {% endif %}
+                {% else %}
+                <span style="color:var(--text-tertiary);">—</span>
                 {% endif %}
             </td>
             <td><span class="badge {{ req.status }}">{{ req.get_status_display }}</span></td>
@@ -92,7 +113,7 @@
         </tr>
         {% endwith %}
         {% empty %}
-        <tr><td colspan="8" class="empty">No tailoring orders found.</td></tr>
+        <tr><td colspan="9" class="empty">No tailoring orders found.</td></tr>
         {% endfor %}
     </tbody>
 </table>

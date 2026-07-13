@@ -151,7 +151,9 @@ class DashboardTailoringListView(LoginRequiredMixin, ListView):
     paginate_by = 50
 
     def get_queryset(self):
-        qs = CustomStyleRequest.objects.select_related("user").order_by("-created_at")
+        qs = CustomStyleRequest.objects.select_related(
+            "user", "fabric_grade__brand", "fabric_color"
+        ).order_by("-created_at")
         status = self.request.GET.get("status")
         if status:
             qs = qs.filter(status=status)

@@ -44,7 +44,7 @@ class FabricColorAdmin(admin.ModelAdmin):
 
 @admin.register(CustomStyleRequest)
 class CustomStyleRequestAdmin(admin.ModelAdmin):
-    list_display = ('id', 'user', 'status', 'price_quote', 'fabric_grade', 'quote_expires_at', 'created_at')
+    list_display = ('id', 'user', 'status', 'price_quote', 'fabric_grade', 'fabric_color', 'quote_expires_at', 'created_at')
     list_filter = ('status', 'created_at')
     search_fields = ('user__username', 'user__email', 'description')
     readonly_fields = ('created_at', 'quote_expires_at')
