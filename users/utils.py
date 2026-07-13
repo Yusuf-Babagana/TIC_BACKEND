@@ -1,3 +1,4 @@
+import logging
 import random
 
 from django.conf import settings
@@ -5,9 +6,31 @@ from django.core.mail import send_mail
 from django.db import transaction as db_transaction
 from django.utils import timezone
 
+logger = logging.getLogger(__name__)
+
 
 def generate_otp():
     return str(random.randint(100000, 999999))
+
+
+def send_customer_email(user, subject, message):
+    """
+    Best-effort order/request confirmation email to the customer. Wrapped so
+    a provider hiccup can never break the checkout/request-submission flow
+    that triggered it — same pattern as the admin notification emails.
+    """
+    if not user.email:
+        return
+    try:
+        send_mail(
+            subject=subject,
+            message=message,
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=[user.email],
+            fail_silently=False,
+        )
+    except Exception:
+        logger.exception("Failed to send customer confirmation email to user id=%s", user.id)
 
 
 def check_transaction_pin(user, pin):

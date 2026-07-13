@@ -20,6 +20,37 @@ from .serializers import (
 )
 
 
+def _send_tailoring_confirmation(style_request):
+    from users.utils import send_customer_email
+
+    lines = [
+        f"Hi {style_request.user.username},",
+        "",
+        "We've received your custom tailoring request:",
+        "",
+        f"Description: {style_request.description[:200]}",
+    ]
+    if style_request.fabric_grade:
+        lines.append(f"Fabric: {style_request.fabric_grade.brand.name} - {style_request.fabric_grade.name}")
+    if style_request.fabric_color:
+        lines.append(f"Color: {style_request.fabric_color.name}")
+    if style_request.price_quote:
+        lines.append(f"Estimated Price: ₦{style_request.price_quote} (subject to admin review)")
+    lines += [
+        "",
+        "Our team will review your request and provide a final price quote soon.",
+        "",
+        "Thanks,",
+        "TIC Team",
+    ]
+
+    send_customer_email(
+        style_request.user,
+        subject="Custom Tailoring Request Received",
+        message="\n".join(lines),
+    )
+
+
 class CategoryViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Category.objects.all().order_by("id")
     serializer_class = CategorySerializer
@@ -63,6 +94,7 @@ class CustomStyleRequestCreateView(generics.CreateAPIView):
         fabric_grade = serializer.validated_data.get("fabric_grade")
         price_quote = fabric_grade.price if fabric_grade else None
         serializer.save(user=self.request.user, price_quote=price_quote)
+        _send_tailoring_confirmation(serializer.instance)
 
 class MyOrdersListView(generics.ListAPIView):
     serializer_class = CustomStyleRequestSerializer
@@ -140,6 +172,7 @@ class CustomTailoringView(APIView):
             fabric_color=fabric_color,
             price_quote=price_quote,
         )
+        _send_tailoring_confirmation(style_request)
 
         serializer = CustomStyleRequestSerializer(style_request)
         return Response(serializer.data, status=status.HTTP_201_CREATED)

@@ -142,8 +142,26 @@ class CheckoutView(APIView):
             status="SUCCESSFUL",
         )
 
-        from users.utils import reward_referrer_on_first_purchase
+        from users.utils import reward_referrer_on_first_purchase, send_customer_email
         reward_referrer_on_first_purchase(request.user)
+
+        item_lines = "\n".join(
+            f"- {i.quantity}x {i.title} — ₦{i.price} each" for i in order.items.all()
+        )
+        send_customer_email(
+            request.user,
+            subject=f"Order Confirmation - {reference}",
+            message=(
+                f"Hi {request.user.username},\n\n"
+                f"Thanks for your order! Here's your confirmation:\n\n"
+                f"Order Reference: {reference}\n"
+                f"Items:\n{item_lines}\n"
+                f"Total: ₦{total}\n"
+                f"Delivery Address: {delivery_address or 'Not provided'}\n\n"
+                f"We'll notify you once your order status changes.\n\n"
+                f"Thanks,\nTIC Team"
+            ),
+        )
 
         cart.items.all().delete()
 
