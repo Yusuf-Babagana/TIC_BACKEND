@@ -6,10 +6,13 @@
 {% block content %}
 <style>
     .img-thumb { width: 50px; height: 50px; object-fit: cover; border-radius: 6px; cursor: pointer; border: 1px solid var(--border); }
-    .measurement-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
+    .measurement-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.75rem; }
     .measurement-item { background: #f8fafc; padding: 0.75rem; border-radius: 8px; text-align: center; }
     .measurement-item .label { font-size: 0.7rem; color: var(--text-secondary); text-transform: uppercase; font-weight: 600; letter-spacing: 0.04em; }
     .measurement-item .value { font-size: 1.2rem; font-weight: 700; color: var(--text); }
+    .measurement-section-title { font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-secondary); margin: 1rem 0 0.5rem; }
+    .measurement-section-title:first-child { margin-top: 0; }
+    .measurement-notes { background: #f8fafc; padding: 0.75rem; border-radius: 8px; font-size: 0.85rem; color: var(--text); white-space: pre-wrap; }
     .fabric-swatch { width: 22px; height: 22px; border-radius: 50%; object-fit: cover; border: 1px solid var(--border); vertical-align: middle; margin-right: 0.35rem; }
     .fabric-info { font-size: 0.78rem; line-height: 1.4; }
     .fabric-info .grade-name { font-weight: 600; }
@@ -170,13 +173,37 @@
         <button class="modal-close" onclick="closeModal('measurementsModal')">&times;</button>
         <h3>Customer Measurements</h3>
         <div id="measurementBody">
+            <div class="measurement-section-title">Upper Body (Shirt, Top &amp; Kaftan)</div>
             <div class="measurement-grid">
                 <div class="measurement-item"><div class="label">Neck</div><div class="value" id="m-neck">—</div></div>
                 <div class="measurement-item"><div class="label">Chest</div><div class="value" id="m-chest">—</div></div>
-                <div class="measurement-item"><div class="label">Waist</div><div class="value" id="m-waist">—</div></div>
                 <div class="measurement-item"><div class="label">Shoulder</div><div class="value" id="m-shoulder">—</div></div>
                 <div class="measurement-item"><div class="label">Length</div><div class="value" id="m-length">—</div></div>
+                <div class="measurement-item"><div class="label">Sleeve</div><div class="value" id="m-sleeve_length">—</div></div>
+                <div class="measurement-item"><div class="label">Bicep</div><div class="value" id="m-bicep">—</div></div>
+                <div class="measurement-item"><div class="label">Wrist</div><div class="value" id="m-wrist">—</div></div>
             </div>
+
+            <div class="measurement-section-title">Lower Body (Trousers &amp; Shorts)</div>
+            <div class="measurement-grid">
+                <div class="measurement-item"><div class="label">Waist</div><div class="value" id="m-waist">—</div></div>
+                <div class="measurement-item"><div class="label">Hips</div><div class="value" id="m-hips">—</div></div>
+                <div class="measurement-item"><div class="label">Trouser Len</div><div class="value" id="m-trouser_length">—</div></div>
+                <div class="measurement-item"><div class="label">Inseam</div><div class="value" id="m-inseam">—</div></div>
+                <div class="measurement-item"><div class="label">Thigh</div><div class="value" id="m-thigh">—</div></div>
+                <div class="measurement-item"><div class="label">Knee</div><div class="value" id="m-knee">—</div></div>
+                <div class="measurement-item"><div class="label">Ankle</div><div class="value" id="m-ankle">—</div></div>
+                <div class="measurement-item"><div class="label">Crotch</div><div class="value" id="m-crotch">—</div></div>
+            </div>
+
+            <div class="measurement-section-title">Caps &amp; Agbada</div>
+            <div class="measurement-grid">
+                <div class="measurement-item"><div class="label">Cap Size</div><div class="value" id="m-cap_size">—</div></div>
+                <div class="measurement-item"><div class="label">Agbada Len</div><div class="value" id="m-agbada_length">—</div></div>
+            </div>
+
+            <div class="measurement-section-title">Fitting Notes</div>
+            <div class="measurement-notes" id="m-notes">—</div>
         </div>
     </div>
 </div>
@@ -224,7 +251,15 @@ const measurementsData = {
     {% for req in requests %}
     {% with m=req.measurement %}
         {% if m %}
-        {{ req.user_id }}: { neck: "{{ m.neck|default:'—' }}", chest: "{{ m.chest|default:'—' }}", waist: "{{ m.waist|default:'—' }}", shoulder: "{{ m.shoulder|default:'—' }}", length: "{{ m.length|default:'—' }}" },
+        {{ req.user_id }}: {
+            neck: "{{ m.neck|default:'—' }}", chest: "{{ m.chest|default:'—' }}", shoulder: "{{ m.shoulder|default:'—' }}",
+            length: "{{ m.length|default:'—' }}", sleeve_length: "{{ m.sleeve_length|default:'—' }}", bicep: "{{ m.bicep|default:'—' }}",
+            wrist: "{{ m.wrist|default:'—' }}", waist: "{{ m.waist|default:'—' }}", hips: "{{ m.hips|default:'—' }}",
+            trouser_length: "{{ m.trouser_length|default:'—' }}", inseam: "{{ m.inseam|default:'—' }}", thigh: "{{ m.thigh|default:'—' }}",
+            knee: "{{ m.knee|default:'—' }}", ankle: "{{ m.ankle|default:'—' }}", crotch: "{{ m.crotch|default:'—' }}",
+            cap_size: "{{ m.cap_size|default:'—' }}", agbada_length: "{{ m.agbada_length|default:'—' }}",
+            notes: "{{ m.notes|default:'—'|escapejs }}",
+        },
         {% endif %}
     {% endwith %}
     {% endfor %}
@@ -233,11 +268,11 @@ const measurementsData = {
 function showMeasurements(userId) {
     const d = measurementsData[userId];
     if (!d) { showToast('No measurements on file', true); return; }
-    document.getElementById('m-neck').textContent = d.neck;
-    document.getElementById('m-chest').textContent = d.chest;
-    document.getElementById('m-waist').textContent = d.waist;
-    document.getElementById('m-shoulder').textContent = d.shoulder;
-    document.getElementById('m-length').textContent = d.length;
+    const fields = ['neck', 'chest', 'shoulder', 'length', 'sleeve_length', 'bicep', 'wrist',
+        'waist', 'hips', 'trouser_length', 'inseam', 'thigh', 'knee', 'ankle', 'crotch',
+        'cap_size', 'agbada_length'];
+    fields.forEach((key) => { document.getElementById('m-' + key).textContent = d[key]; });
+    document.getElementById('m-notes').textContent = d.notes && d.notes !== '—' ? d.notes : 'No fitting notes provided.';
     openModal('measurementsModal');
 }
 
