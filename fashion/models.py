@@ -26,11 +26,27 @@ class Product(models.Model):
 class UserMeasurement(models.Model):
     # Linked to user for FR-18: Input body measurements
     user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    # Upper body (shirt, top & kaftan)
     neck = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
     chest = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
-    waist = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
     shoulder = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
     length = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
+    sleeve_length = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
+    bicep = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
+    wrist = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
+    # Lower body (trousers & shorts)
+    waist = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
+    hips = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
+    trouser_length = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
+    inseam = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
+    thigh = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
+    knee = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
+    ankle = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
+    crotch = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
+    # Caps, agbada & fitting notes
+    cap_size = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
+    agbada_length = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
+    notes = models.TextField(blank=True, default="")
     last_updated = models.DateTimeField(auto_now=True)
 
 class FabricBrand(models.Model):

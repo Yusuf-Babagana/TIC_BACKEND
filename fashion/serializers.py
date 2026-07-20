@@ -17,7 +17,11 @@ class CategorySerializer(serializers.ModelSerializer):
 class UserMeasurementSerializer(serializers.ModelSerializer):
     class Meta:
         model = UserMeasurement
-        fields = ['neck', 'chest', 'waist', 'shoulder', 'length']
+        fields = [
+            'neck', 'chest', 'shoulder', 'length', 'sleeve_length', 'bicep', 'wrist',
+            'waist', 'hips', 'trouser_length', 'inseam', 'thigh', 'knee', 'ankle', 'crotch',
+            'cap_size', 'agbada_length', 'notes',
+        ]
         # We don't include 'user' here as it's handled by the view via request.user
 
 

@@ -14,7 +14,11 @@ class ProductAdmin(admin.ModelAdmin):
 
 @admin.register(UserMeasurement)
 class UserMeasurementAdmin(admin.ModelAdmin):
-    list_display = ('id', 'user', 'neck', 'chest', 'waist', 'shoulder', 'length', 'last_updated')
+    list_display = (
+        'id', 'user', 'neck', 'chest', 'shoulder', 'length', 'sleeve_length', 'bicep', 'wrist',
+        'waist', 'hips', 'trouser_length', 'inseam', 'thigh', 'knee', 'ankle', 'crotch',
+        'cap_size', 'agbada_length', 'last_updated',
+    )
     search_fields = ('user__username', 'user__email')
 
 class FabricGradeInline(admin.TabularInline):
