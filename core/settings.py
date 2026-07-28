@@ -75,8 +75,33 @@ DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.sqlite3",
         "NAME": BASE_DIR / "db.sqlite3",
+        # Python's sqlite3 default busy-timeout is 5s — under any concurrent
+        # writes (registration, wallet debits, orders, webhooks all hit the
+        # same file) that's not enough and raises "database is locked".
+        # 20s buys real headroom without masking a genuinely stuck writer.
+        "OPTIONS": {
+            "timeout": 20,
+        },
     }
 }
+
+
+def _enable_sqlite_wal(sender, connection, **kwargs):
+    # WAL mode lets readers proceed without blocking on an in-progress
+    # writer (and vice versa) — SQLite still only allows one writer at a
+    # time, but this removes most of the read/write contention that trips
+    # "database is locked" under everyday traffic. Safe to run on every
+    # connection open: PRAGMA journal_mode is a one-time, idempotent,
+    # persisted-in-the-file setting.
+    if connection.vendor == "sqlite":
+        with connection.cursor() as cursor:
+            cursor.execute("PRAGMA journal_mode=WAL;")
+            cursor.execute("PRAGMA synchronous=NORMAL;")
+
+
+from django.db.backends.signals import connection_created  # noqa: E402
+
+connection_created.connect(_enable_sqlite_wal)
 
 AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
