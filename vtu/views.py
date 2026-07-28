@@ -207,6 +207,20 @@ def _execute_nellobytes_purchase(user, trans_type, cost, buy_fn):
             reference=request_id,
             status="FAILED",
         )
+
+        # Nellobytes' own reseller balance running dry is an operational
+        # problem on our side, not something the end user can act on —
+        # show it as a generic outage rather than leaking "Insufficient
+        # Balance" (which reads like *their* wallet is short).
+        if "INSUFFICIENT_BALANCE" in str(e).upper():
+            return Response(
+                {
+                    "status": "false",
+                    "message": "This service is temporarily under maintenance. Please try again shortly.",
+                },
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+
         return Response(
             {"status": "false", "message": str(e)},
             status=status.HTTP_502_BAD_GATEWAY,
