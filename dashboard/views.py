@@ -450,8 +450,10 @@ class DashboardFinanceView(LoginRequiredMixin, TemplateView):
         # the admin to know when to top it up on nellobytesystems.com.
         # Best-effort: never let a slow/down provider break the page.
         try:
-            raw_balance = NellobytesService.get_wallet_balance()["balance"]
-            context["reseller_balance"] = float(raw_balance)
+            nb_wallet = NellobytesService.get_wallet_balance()
+            context["reseller_balance"] = float(nb_wallet["balance"])
+            context["reseller_account_id"] = nb_wallet.get("id")
+            context["reseller_account_phone"] = nb_wallet.get("phoneno")
         except (NellobytesError, TypeError, ValueError) as e:
             context["reseller_balance"] = None
             context["reseller_balance_error"] = str(e)

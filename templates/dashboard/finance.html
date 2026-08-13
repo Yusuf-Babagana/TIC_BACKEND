@@ -55,6 +55,9 @@
         {% if reseller_balance is not None %}
         <div class="value{% if reseller_balance < 5000 %} orange{% else %} green{% endif %}">₦{{ reseller_balance|floatformat:0 }}</div>
         <div class="label">Nellobytes Reseller Balance</div>
+        <div class="label" style="margin-top:0.35rem;">
+            Acct: {{ reseller_account_id|default:"—" }}{% if reseller_account_phone %} · {{ reseller_account_phone }}{% endif %}
+        </div>
         {% else %}
         <div class="value orange" style="font-size:1rem;" title="{{ reseller_balance_error }}">Unavailable</div>
         <div class="label">Nellobytes Reseller Balance</div>
