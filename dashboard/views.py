@@ -26,6 +26,7 @@ from fashion.models import (
 from marketing.models import Flyer as FlyerModel, MarketingGallery as MarketingGalleryModel, Order as OrderModel
 from users.models import Referral, ReferralConfig
 from vtu.models import DataPlan, Provider
+from vtu.nellobytes import NellobytesError, NellobytesService
 from wallet.models import Transaction, Wallet
 
 UserModel = get_user_model()
@@ -443,6 +444,17 @@ class DashboardFinanceView(LoginRequiredMixin, TemplateView):
         )
         context["total_transactions"] = Transaction.objects.count()
         context["total_wallets"] = Wallet.objects.count()
+
+        # Balance of the account purchases are funded from (see nellobytes.py).
+        # Best-effort: never let a slow/down provider break the page.
+        try:
+            nb_wallet = NellobytesService.get_wallet_balance()
+            context["provider_balance"] = float(nb_wallet["balance"])
+            context["provider_account_id"] = nb_wallet.get("id")
+            context["provider_account_phone"] = nb_wallet.get("phoneno")
+        except (NellobytesError, TypeError, ValueError) as e:
+            context["provider_balance"] = None
+            context["provider_balance_error"] = str(e)
 
         q = self.request.GET.get("q", "").strip()
         txn_status = self.request.GET.get("status", "")

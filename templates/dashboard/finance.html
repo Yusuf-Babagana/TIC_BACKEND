@@ -54,6 +54,15 @@
         <div class="value">{{ total_wallets }}</div>
         <div class="label">Active Wallets</div>
     </div>
+    <div class="finance-card">
+        {% if provider_balance is not None %}
+        <div class="value{% if provider_balance < 5000 %} orange{% else %} green{% endif %}">₦{{ provider_balance|floatformat:0 }}</div>
+        <div class="label">Balance Overview</div>
+        {% else %}
+        <div class="value orange" style="font-size:1rem;" title="{{ provider_balance_error }}">Unavailable</div>
+        <div class="label">Balance Overview</div>
+        {% endif %}
+    </div>
 </div>
 
 <div class="section-card">
