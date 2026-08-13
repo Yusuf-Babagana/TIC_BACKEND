@@ -449,7 +449,8 @@ class DashboardFinanceView(LoginRequiredMixin, TemplateView):
         # Best-effort: never let a slow/down provider break the page.
         try:
             nb_wallet = NellobytesService.get_wallet_balance()
-            context["provider_balance"] = float(nb_wallet["balance"])
+            # Nellobytes formats balance with thousands separators (e.g. "10,071.90").
+            context["provider_balance"] = float(str(nb_wallet["balance"]).replace(",", ""))
             context["provider_account_id"] = nb_wallet.get("id")
             context["provider_account_phone"] = nb_wallet.get("phoneno")
         except (NellobytesError, TypeError, ValueError) as e:
