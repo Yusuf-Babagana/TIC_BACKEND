@@ -13,6 +13,9 @@
     .finance-card .value.purple { color: var(--primary-muted); }
     .finance-card .label { color: var(--text-secondary); font-size: 0.78rem; margin-top: 0.15rem; font-weight: 500; }
 
+    .info-grid { display: grid; grid-template-columns: 150px 1fr; gap: 0.5rem; font-size: 0.88rem; align-items: center; }
+    .info-grid .key { color: var(--text-secondary); font-weight: 500; }
+
     .search-section { background: var(--card); border-radius: var(--radius); border: 1px solid var(--border); padding: 1rem 1.25rem; box-shadow: var(--shadow); margin-bottom: 1rem; }
     .search-row { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
     .search-row input, .search-row select { padding: 0.4rem 0.6rem; border: 1px solid var(--border); border-radius: 6px; font-size: 0.85rem; }
@@ -51,17 +54,14 @@
         <div class="value">{{ total_wallets }}</div>
         <div class="label">Active Wallets</div>
     </div>
-    <div class="finance-card">
-        {% if reseller_balance is not None %}
-        <div class="value{% if reseller_balance < 5000 %} orange{% else %} green{% endif %}">₦{{ reseller_balance|floatformat:0 }}</div>
-        <div class="label">Nellobytes Reseller Balance</div>
-        <div class="label" style="margin-top:0.35rem;">
-            Acct: {{ reseller_account_id|default:"—" }}{% if reseller_account_phone %} · {{ reseller_account_phone }}{% endif %}
-        </div>
-        {% else %}
-        <div class="value orange" style="font-size:1rem;" title="{{ reseller_balance_error }}">Unavailable</div>
-        <div class="label">Nellobytes Reseller Balance</div>
-        {% endif %}
+</div>
+
+<div class="section-card">
+    <h2>Fund Nellobytes Account</h2>
+    <div class="info-grid">
+        <span class="key">Bank Name</span><span>MONIEPOINT MICROFINANCE BANK</span>
+        <span class="key">Account Name</span><span>NELLOBYTE-ABD</span>
+        <span class="key">Account Number</span><span style="font-family:monospace;font-size:1.1rem;font-weight:700;color:var(--accent);">6733937223</span>
     </div>
 </div>
 
