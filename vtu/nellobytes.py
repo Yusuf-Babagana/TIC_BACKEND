@@ -60,9 +60,9 @@ class NellobytesService:
         return settings.NELLOBYTES_USER_ID, settings.NELLOBYTES_API_KEY
 
     @classmethod
-    def _get_json(cls, endpoint, params):
+    def _get_json(cls, endpoint, params, timeout=None):
         try:
-            resp = requests.get(f"{cls.BASE_URL}{endpoint}", params=params, timeout=cls.TIMEOUT)
+            resp = requests.get(f"{cls.BASE_URL}{endpoint}", params=params, timeout=timeout or cls.TIMEOUT)
             return resp.json()
         except requests.Timeout:
             raise NellobytesError("Nellobytes request timed out")
@@ -213,6 +213,25 @@ class NellobytesService:
         if not customer_name or customer_name == "INVALID_METERNO":
             raise NellobytesError("INVALID_METERNO")
         return customer_name
+
+    @classmethod
+    def get_wallet_balance(cls, timeout=10):
+        """
+        Checks *our* reseller balance on Nellobytes, not any end user's
+        wallet — this is what the admin dashboard funds so purchases keep
+        working. Uses a short default timeout since callers typically block
+        a page render on this.
+        """
+        user_id, api_key = cls._credentials()
+        params = {"UserID": user_id, "APIKey": api_key}
+        body = cls._get_json("/APIWalletBalanceV1.asp", params, timeout=timeout)
+
+        balance = body.get("balance")
+        if balance is None:
+            status_msg = body.get("status") or "UNKNOWN_ERROR"
+            logger.error("Nellobytes wallet balance check failed: %s", body)
+            raise NellobytesError(status_msg)
+        return body
 
     @classmethod
     def query_order(cls, order_id=None, request_id=None):
