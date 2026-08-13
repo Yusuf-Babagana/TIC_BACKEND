@@ -26,7 +26,6 @@ from fashion.models import (
 from marketing.models import Flyer as FlyerModel, MarketingGallery as MarketingGalleryModel, Order as OrderModel
 from users.models import Referral, ReferralConfig
 from vtu.models import DataPlan, Provider
-from vtu.nellobytes import NellobytesError, NellobytesService
 from wallet.models import Transaction, Wallet
 
 UserModel = get_user_model()
@@ -444,17 +443,6 @@ class DashboardFinanceView(LoginRequiredMixin, TemplateView):
         )
         context["total_transactions"] = Transaction.objects.count()
         context["total_wallets"] = Wallet.objects.count()
-
-        # Our reseller balance on Nellobytes' side — not any end user's
-        # wallet. Purchases fail once this runs dry, so surface it here for
-        # the admin to know when to top it up on nellobytesystems.com.
-        # Best-effort: never let a slow/down provider break the page.
-        try:
-            raw_balance = NellobytesService.get_wallet_balance()["balance"]
-            context["reseller_balance"] = float(raw_balance)
-        except (NellobytesError, TypeError, ValueError) as e:
-            context["reseller_balance"] = None
-            context["reseller_balance_error"] = str(e)
 
         q = self.request.GET.get("q", "").strip()
         txn_status = self.request.GET.get("status", "")
