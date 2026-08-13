@@ -215,12 +215,13 @@ class NellobytesService:
         return customer_name
 
     @classmethod
-    def get_wallet_balance(cls, timeout=10):
+    def get_wallet_balance(cls, timeout=20):
         """
         Checks *our* reseller balance on Nellobytes, not any end user's
         wallet — this is what the admin dashboard funds so purchases keep
-        working. Uses a short default timeout since callers typically block
-        a page render on this.
+        working. Uses a shorter-than-default timeout since callers typically
+        block a page render on this, but still generous enough that a merely
+        slow (not down) provider doesn't read as "Unavailable".
         """
         user_id, api_key = cls._credentials()
         params = {"UserID": user_id, "APIKey": api_key}

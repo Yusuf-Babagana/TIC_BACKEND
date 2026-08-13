@@ -59,8 +59,9 @@
         <div class="value{% if provider_balance < 5000 %} orange{% else %} green{% endif %}">₦{{ provider_balance|floatformat:0 }}</div>
         <div class="label">Balance Overview</div>
         {% else %}
-        <div class="value orange" style="font-size:1rem;" title="{{ provider_balance_error }}">Unavailable</div>
+        <div class="value orange" style="font-size:1rem;">Unavailable</div>
         <div class="label">Balance Overview</div>
+        <div class="label" style="margin-top:0.35rem;color:var(--danger);" title="{{ provider_balance_error }}">{{ provider_balance_error|truncatechars:60 }}</div>
         {% endif %}
     </div>
 </div>
