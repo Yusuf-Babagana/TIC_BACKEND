@@ -54,10 +54,20 @@
         <div class="value">{{ total_wallets }}</div>
         <div class="label">Active Wallets</div>
     </div>
+    <div class="finance-card">
+        {% if provider_balance is not None %}
+        <div class="value{% if provider_balance < 5000 %} orange{% else %} green{% endif %}">₦{{ provider_balance|floatformat:0 }}</div>
+        <div class="label">Balance Overview</div>
+        {% else %}
+        <div class="value orange" style="font-size:1rem;" title="{{ provider_balance_error }}">Unavailable</div>
+        <div class="label">Balance Overview</div>
+        {% endif %}
+    </div>
 </div>
 
 <div class="section-card">
-    <h2>Fund Nellobytes Account</h2>
+    <h2>Fund Account</h2>
+    <p style="font-size:0.85rem;color:var(--text-secondary);margin-top:-0.5rem;margin-bottom:1rem;">Transfer to this account to keep Airtime, Data, Cable TV & Electricity purchases running.</p>
     <div class="info-grid">
         <span class="key">Bank Name</span><span>MONIEPOINT MICROFINANCE BANK</span>
         <span class="key">Account Name</span><span>NELLOBYTE-ABD</span>
