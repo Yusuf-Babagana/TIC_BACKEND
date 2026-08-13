@@ -51,6 +51,15 @@
         <div class="value">{{ total_wallets }}</div>
         <div class="label">Active Wallets</div>
     </div>
+    <div class="finance-card">
+        {% if reseller_balance is not None %}
+        <div class="value{% if reseller_balance < 5000 %} orange{% else %} green{% endif %}">₦{{ reseller_balance|floatformat:0 }}</div>
+        <div class="label">Nellobytes Reseller Balance</div>
+        {% else %}
+        <div class="value orange" style="font-size:1rem;" title="{{ reseller_balance_error }}">Unavailable</div>
+        <div class="label">Nellobytes Reseller Balance</div>
+        {% endif %}
+    </div>
 </div>
 
 <div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:1rem;">
