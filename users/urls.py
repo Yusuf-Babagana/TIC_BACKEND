@@ -11,6 +11,7 @@ from .views import (
     ResetPasswordView,
     SendOTPView,
     SetTransactionPinView,
+    SiteSettingsView,
     VerifyOTPView,
     VerifyTransactionPinView,
 )
@@ -29,4 +30,5 @@ urlpatterns = [
     path('transaction-pin/verify/', VerifyTransactionPinView.as_view(), name='verify-transaction-pin'),
     path('referral/', MyReferralView.as_view(), name='my-referral'),
     path('referral/stats/', MyReferralStatsView.as_view(), name='my-referral-stats'),
+    path('site-settings/', SiteSettingsView.as_view(), name='site-settings'),
 ]

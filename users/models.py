@@ -57,6 +57,26 @@ class ReferralConfig(models.Model):
         return config.bonus_amount
 
 
+class SiteSettings(models.Model):
+    """
+    Singleton row (pk=1) for site-wide values the admin can change without a
+    deploy — e.g. the WhatsApp support number shown across the app.
+    """
+    whatsapp_number = models.CharField(max_length=20, blank=True, default="")
+
+    class Meta:
+        verbose_name = "Site Settings"
+        verbose_name_plural = "Site Settings"
+
+    def __str__(self):
+        return f"Site Settings (WhatsApp: {self.whatsapp_number or 'not set'})"
+
+    @classmethod
+    def get_solo(cls):
+        obj, _ = cls.objects.get_or_create(pk=1)
+        return obj
+
+
 class Referral(models.Model):
     referrer = models.ForeignKey(
         User, on_delete=models.CASCADE, related_name="referrals_made"

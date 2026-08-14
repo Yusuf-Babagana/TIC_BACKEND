@@ -229,6 +229,17 @@ class MyReferralView(APIView):
         })
 
 
+class SiteSettingsView(APIView):
+    """Public, unauthenticated — the app fetches the current support contact from here."""
+    permission_classes = [permissions.AllowAny]
+
+    def get(self, request):
+        from .models import SiteSettings
+
+        settings_obj = SiteSettings.get_solo()
+        return Response({"whatsapp_number": settings_obj.whatsapp_number})
+
+
 class MyReferralStatsView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
