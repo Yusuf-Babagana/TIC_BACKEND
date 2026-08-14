@@ -24,7 +24,7 @@ from fashion.models import (
     UserMeasurement,
 )
 from marketing.models import Flyer as FlyerModel, MarketingGallery as MarketingGalleryModel, Order as OrderModel
-from users.models import Referral, ReferralConfig
+from users.models import Referral, ReferralConfig, SiteSettings
 from vtu.models import DataPlan, Provider
 from vtu.nellobytes import NellobytesError, NellobytesService
 from wallet.models import Transaction, Wallet
@@ -832,6 +832,30 @@ class DashboardReferralUpdateBonusView(LoginRequiredMixin, View):
             return JsonResponse({"message": f"Referral bonus updated to ₦{amount}"})
         except Exception:
             return JsonResponse({"error": "Invalid amount"}, status=400)
+
+
+class DashboardSettingsView(LoginRequiredMixin, TemplateView):
+    template_name = "dashboard/settings.html"
+    login_url = "/dashboard/login/"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["site_settings"] = SiteSettings.get_solo()
+        return context
+
+
+class DashboardSettingsUpdateView(LoginRequiredMixin, View):
+    login_url = "/dashboard/login/"
+
+    def post(self, request):
+        whatsapp_number = request.POST.get("whatsapp_number", "").strip()
+        settings_obj = SiteSettings.get_solo()
+        settings_obj.whatsapp_number = whatsapp_number
+        settings_obj.save(update_fields=["whatsapp_number"])
+        return JsonResponse({
+            "message": "WhatsApp support number updated",
+            "whatsapp_number": whatsapp_number,
+        })
 
 
 from .models import AdminNotification
