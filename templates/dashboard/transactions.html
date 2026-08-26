@@ -4,12 +4,14 @@
 {% block heading %}Transactions{% endblock %}
 
 {% block content %}
+{% csrf_token %}
 <div class="filter-bar">
     <a href="{% url 'dashboard_transactions' %}" {% if not active_status %}class="active"{% endif %}>All</a>
     <a href="{% url 'dashboard_transactions' %}?status=SUCCESSFUL" {% if active_status == 'SUCCESSFUL' %}class="active"{% endif %}>Successful</a>
     <a href="{% url 'dashboard_transactions' %}?status=FAILED" {% if active_status == 'FAILED' %}class="active"{% endif %}>Failed</a>
     <a href="{% url 'dashboard_transactions' %}?status=pending" {% if active_status == 'pending' %}class="active"{% endif %}>Pending</a>
     <a href="{% url 'dashboard_transactions' %}?status=processing" {% if active_status == 'processing' %}class="active"{% endif %}>Processing</a>
+    <a href="{% url 'dashboard_transactions' %}?status=REFUNDED" {% if active_status == 'REFUNDED' %}class="active"{% endif %}>Refunded</a>
 </div>
 
 <div class="table-wrap">
@@ -22,6 +24,7 @@
             <th>Amount (₦)</th>
             <th>Status</th>
             <th>Date</th>
+            <th>Actions</th>
         </tr>
     </thead>
     <tbody>
@@ -33,9 +36,16 @@
             <td>{{ txn.amount|floatformat:2 }}</td>
             <td><span class="badge {{ txn.status }}">{{ txn.status }}</span></td>
             <td>{{ txn.created_at|date:"M d, H:i" }}</td>
+            <td>
+                {% if txn.status == 'FAILED' and txn.trans_type != 'DEPOSIT' %}
+                <button class="btn btn-sm btn-accent" onclick="refundTransaction({{ txn.pk }}, this)">Refund</button>
+                {% else %}
+                &mdash;
+                {% endif %}
+            </td>
         </tr>
         {% empty %}
-        <tr><td colspan="6" class="empty">No transactions found.</td></tr>
+        <tr><td colspan="7" class="empty">No transactions found.</td></tr>
         {% endfor %}
     </tbody>
 </table>
@@ -52,4 +62,19 @@
     {% endif %}
 </div>
 {% endif %}
+
+<script>
+function refundTransaction(pk, btn) {
+    if (!confirm('Credit this user\'s wallet back for this failed transaction? This cannot be undone from here.')) return;
+    btn.disabled = true;
+    const form = new FormData();
+    form.append('csrfmiddlewaretoken', getCSRF());
+    fetch(`/dashboard/transactions/${pk}/refund/`, { method: 'POST', body: form, headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+    .then(r => r.json()).then(d => {
+        if (d.error) { showToast(d.error, true); btn.disabled = false; return; }
+        showToast(d.message);
+        setTimeout(() => location.reload(), 1200);
+    }).catch(() => { showToast('Request failed', true); btn.disabled = false; });
+}
+</script>
 {% endblock %}

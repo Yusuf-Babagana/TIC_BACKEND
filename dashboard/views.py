@@ -581,6 +581,60 @@ class DashboardWalletAdjustView(LoginRequiredMixin, View):
             return JsonResponse({"error": str(e)}, status=500)
 
 
+class DashboardTransactionRefundView(LoginRequiredMixin, View):
+    """
+    Manually credits a user's wallet back for a FAILED purchase — for the
+    rare case the automatic refund in nellobytes.apply_order_outcome never
+    ran (e.g. a webhook that never arrived and reconciliation missed).
+    Locks Transaction then Wallet, same order as apply_order_outcome, and
+    flips status FAILED -> REFUNDED so a second click is rejected outright
+    rather than double-crediting the wallet.
+    """
+    login_url = "/dashboard/login/"
+
+    def post(self, request, pk):
+        from django.db import transaction as db_transaction
+
+        with db_transaction.atomic():
+            try:
+                txn = Transaction.objects.select_for_update().get(pk=pk)
+            except Transaction.DoesNotExist:
+                return JsonResponse({"error": "Transaction not found"}, status=404)
+
+            if txn.status != "FAILED":
+                return JsonResponse(
+                    {"error": f"Only FAILED transactions can be refunded (this one is {txn.status})"},
+                    status=400,
+                )
+            if txn.trans_type == "DEPOSIT":
+                return JsonResponse(
+                    {"error": "Deposits weren't deducted from the wallet, so there's nothing to refund"},
+                    status=400,
+                )
+
+            try:
+                wallet = Wallet.objects.select_for_update().get(user=txn.user)
+            except Wallet.DoesNotExist:
+                return JsonResponse({"error": "No wallet for this user"}, status=404)
+
+            wallet.balance += txn.amount
+            wallet.save(update_fields=["balance"])
+
+            txn.status = "REFUNDED"
+            txn.save(update_fields=["status"])
+
+        AdminNotification.objects.create(
+            notification_type="admin_refund",
+            message=f"Admin refunded ₦{txn.amount} to {txn.user.username} for {txn.reference}",
+            link="/dashboard/transactions/",
+        )
+
+        return JsonResponse({
+            "message": f"Refunded ₦{txn.amount} to {txn.user.username}",
+            "new_balance": str(wallet.balance),
+        })
+
+
 class DashboardUserListView(LoginRequiredMixin, ListView):
     template_name = "dashboard/users.html"
     login_url = "/dashboard/login/"

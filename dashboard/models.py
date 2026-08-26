@@ -9,6 +9,7 @@ class AdminNotification(models.Model):
         ("new_deposit", "New Wallet Deposit"),
         ("new_purchase", "New VTU Purchase"),
         ("new_referral", "New Referral"),
+        ("admin_refund", "Admin Wallet Refund"),
     ]
 
     notification_type = models.CharField(max_length=30, choices=NOTIFICATION_TYPES)
