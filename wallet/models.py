@@ -30,6 +30,7 @@ class Transaction(models.Model):
         ('PENDING', 'Pending'),
         ('SUCCESSFUL', 'Successful'),
         ('FAILED', 'Failed'),
+        ('REFUNDED', 'Refunded'),
     ]
 
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)

@@ -37,6 +37,7 @@ from .views import (
     DashboardTailoringListView,
     DashboardTailoringUpdateView,
     DashboardTransactionListView,
+    DashboardTransactionRefundView,
     DashboardUserDetailView,
     DashboardUserListView,
     DashboardUserToggleActiveView,
@@ -58,6 +59,11 @@ urlpatterns = [
         "transactions/",
         DashboardTransactionListView.as_view(),
         name="dashboard_transactions",
+    ),
+    path(
+        "transactions/<int:pk>/refund/",
+        DashboardTransactionRefundView.as_view(),
+        name="dashboard_transaction_refund",
     ),
     path(
         "tailoring/",
