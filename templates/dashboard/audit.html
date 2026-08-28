@@ -1,0 +1,119 @@
+{% extends "dashboard/base.html" %}
+
+{% block title %}Audit Log - TIC Admin{% endblock %}
+{% block heading %}Audit Log{% endblock %}
+
+{% block content %}
+<style>
+    .audit-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; margin-bottom: 1.5rem; }
+    .audit-card { background: var(--card); border-radius: var(--radius); border: 1px solid var(--border); padding: 1.25rem; box-shadow: var(--shadow); }
+    .audit-card .value { font-size: 1.5rem; font-weight: 800; letter-spacing: -0.02em; }
+    .audit-card .label { color: var(--text-secondary); font-size: 0.78rem; margin-top: 0.15rem; font-weight: 500; }
+
+    .search-section { background: var(--card); border-radius: var(--radius); border: 1px solid var(--border); padding: 1rem 1.25rem; box-shadow: var(--shadow); margin-bottom: 1rem; }
+    .search-row { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
+    .search-row input, .search-row select { padding: 0.4rem 0.6rem; border: 1px solid var(--border); border-radius: 6px; font-size: 0.85rem; }
+    .search-row input:focus, .search-row select:focus { outline: none; border-color: var(--primary-muted); }
+    .search-row input[type="text"], .search-row input[type="date"] { width: 150px; }
+
+    .audit-details summary { cursor: pointer; font-size: 0.78rem; color: var(--primary-muted); font-weight: 600; }
+    .audit-details pre {
+        margin-top: 0.4rem; padding: 0.6rem; background: var(--highlight); border-radius: 6px;
+        font-size: 0.72rem; max-width: 320px; white-space: pre-wrap; word-break: break-word;
+        border: 1px solid var(--border);
+    }
+    .mono { font-family: monospace; font-size: 0.75rem; }
+</style>
+
+<div class="audit-cards">
+    <div class="audit-card">
+        <div class="value" style="color:var(--accent);">{{ total_logs }}</div>
+        <div class="label">Total Actions Logged</div>
+    </div>
+    <div class="audit-card">
+        <div class="value" style="color:var(--danger);">{{ failed_count }}</div>
+        <div class="label">Failed Actions</div>
+    </div>
+</div>
+
+<div class="search-section">
+    <form method="get" style="display:flex;flex-direction:column;gap:0.5rem;">
+        <div class="search-row">
+            <input type="text" name="q" placeholder="Search admin, action, path..." value="{{ q }}" style="width:220px;">
+            <select name="action">
+                <option value="">All Actions</option>
+                {% for choice in action_choices %}
+                <option value="{{ choice }}" {% if active_action == choice %}selected{% endif %}>{{ choice }}</option>
+                {% endfor %}
+            </select>
+            <select name="outcome">
+                <option value="">All Outcomes</option>
+                <option value="success" {% if active_outcome == 'success' %}selected{% endif %}>Success</option>
+                <option value="failed" {% if active_outcome == 'failed' %}selected{% endif %}>Failed</option>
+            </select>
+            <input type="date" name="from" value="{{ date_from }}">
+            <input type="date" name="to" value="{{ date_to }}">
+            <button type="submit" class="btn btn-primary btn-sm">Search</button>
+            <a href="{% url 'dashboard_audit' %}" class="btn btn-sm btn-outline" style="text-decoration:none;">Clear</a>
+        </div>
+    </form>
+</div>
+
+<div class="table-wrap">
+<table>
+    <thead>
+        <tr>
+            <th>Time</th>
+            <th>Admin</th>
+            <th>Action</th>
+            <th>Path</th>
+            <th>Outcome</th>
+            <th>IP</th>
+            <th>Details</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for log in logs %}
+        <tr>
+            <td style="white-space:nowrap;">{{ log.created_at|date:"M d, H:i:s" }}</td>
+            <td>{{ log.actor_username|default:"—" }}</td>
+            <td>{{ log.summary }}</td>
+            <td class="mono">{{ log.path }}</td>
+            <td>
+                {% if log.success %}
+                <span class="badge SUCCESSFUL">OK ({{ log.status_code }})</span>
+                {% else %}
+                <span class="badge FAILED">Failed ({{ log.status_code }})</span>
+                {% endif %}
+            </td>
+            <td class="mono">{{ log.ip_address|default:"—" }}</td>
+            <td>
+                {% if log.details and log.details != "{}" %}
+                <details class="audit-details">
+                    <summary>View</summary>
+                    <pre>{{ log.details }}</pre>
+                </details>
+                {% else %}
+                &mdash;
+                {% endif %}
+            </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="7" class="empty">No admin actions logged yet.</td></tr>
+        {% endfor %}
+    </tbody>
+</table>
+</div>
+
+{% if is_paginated %}
+<div class="pagination">
+    {% if page_obj.has_previous %}
+    <a href="?page={{ page_obj.previous_page_number }}{% if q %}&q={{ q }}{% endif %}{% if active_action %}&action={{ active_action }}{% endif %}{% if active_outcome %}&outcome={{ active_outcome }}{% endif %}{% if date_from %}&from={{ date_from }}{% endif %}{% if date_to %}&to={{ date_to }}{% endif %}">← Prev</a>
+    {% endif %}
+    <span>Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+    {% if page_obj.has_next %}
+    <a href="?page={{ page_obj.next_page_number }}{% if q %}&q={{ q }}{% endif %}{% if active_action %}&action={{ active_action }}{% endif %}{% if active_outcome %}&outcome={{ active_outcome }}{% endif %}{% if date_from %}&from={{ date_from }}{% endif %}{% if date_to %}&to={{ date_to }}{% endif %}">Next →</a>
+    {% endif %}
+</div>
+{% endif %}
+{% endblock %}

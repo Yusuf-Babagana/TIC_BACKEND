@@ -912,7 +912,67 @@ class DashboardSettingsUpdateView(LoginRequiredMixin, View):
         })
 
 
-from .models import AdminNotification
+from .models import AdminNotification, AuditLog
+
+
+class DashboardAuditLogView(LoginRequiredMixin, ListView):
+    template_name = "dashboard/audit.html"
+    login_url = "/dashboard/login/"
+    context_object_name = "logs"
+    paginate_by = 50
+
+    def get_queryset(self):
+        qs = AuditLog.objects.all()
+
+        q = self.request.GET.get("q", "").strip()
+        action = self.request.GET.get("action", "")
+        outcome = self.request.GET.get("outcome", "")
+        date_from = self.request.GET.get("from", "")
+        date_to = self.request.GET.get("to", "")
+
+        if q:
+            qs = qs.filter(
+                Q(actor_username__icontains=q)
+                | Q(summary__icontains=q)
+                | Q(path__icontains=q)
+                | Q(details__icontains=q)
+            )
+        if action:
+            qs = qs.filter(action=action)
+        if outcome == "success":
+            qs = qs.filter(success=True)
+        elif outcome == "failed":
+            qs = qs.filter(success=False)
+        if date_from:
+            try:
+                qs = qs.filter(
+                    created_at__gte=timezone.make_aware(datetime.strptime(date_from, "%Y-%m-%d"))
+                )
+            except ValueError:
+                pass
+        if date_to:
+            try:
+                qs = qs.filter(
+                    created_at__lte=timezone.make_aware(datetime.strptime(date_to, "%Y-%m-%d"))
+                )
+            except ValueError:
+                pass
+
+        return qs
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["q"] = self.request.GET.get("q", "")
+        context["active_action"] = self.request.GET.get("action", "")
+        context["active_outcome"] = self.request.GET.get("outcome", "")
+        context["date_from"] = self.request.GET.get("from", "")
+        context["date_to"] = self.request.GET.get("to", "")
+        context["action_choices"] = (
+            AuditLog.objects.order_by("action").values_list("action", flat=True).distinct()
+        )
+        context["total_logs"] = AuditLog.objects.count()
+        context["failed_count"] = AuditLog.objects.filter(success=False).count()
+        return context
 
 
 class NotificationPollView(LoginRequiredMixin, View):
