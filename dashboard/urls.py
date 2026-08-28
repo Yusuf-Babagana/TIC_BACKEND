@@ -2,6 +2,7 @@ from django.urls import path
 
 from .views import (
     AdminDashboardView,
+    DashboardAuditLogView,
     DashboardFabricBrandCreateView,
     DashboardFabricBrandDeleteView,
     DashboardFabricBrandUpdateView,
@@ -113,6 +114,7 @@ urlpatterns = [
     ),
     path("settings/", DashboardSettingsView.as_view(), name="dashboard_settings"),
     path("settings/update/", DashboardSettingsUpdateView.as_view(), name="dashboard_settings_update"),
+    path("audit/", DashboardAuditLogView.as_view(), name="dashboard_audit"),
     path("notifications/", NotificationPollView.as_view(), name="dashboard_notifications"),
     path("notifications/<int:pk>/read/", NotificationMarkReadView.as_view(), name="dashboard_notification_read"),
     path("notifications/read-all/", NotificationMarkAllReadView.as_view(), name="dashboard_notification_read_all"),
