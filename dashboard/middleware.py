@@ -1,6 +1,8 @@
 import json
 import logging
 
+from .utils import client_ip
+
 logger = logging.getLogger(__name__)
 
 # Substrings that mark a POST field as sensitive — never persisted, whatever
@@ -31,13 +33,6 @@ ACTION_LABELS = {
     "dashboard_tailoring_update": "Update tailoring order",
     "dashboard_order_update": "Update market order",
 }
-
-
-def _client_ip(request):
-    forwarded = request.META.get("HTTP_X_FORWARDED_FOR")
-    if forwarded:
-        return forwarded.split(",")[0].strip()
-    return request.META.get("REMOTE_ADDR")
 
 
 def _sanitize_payload(post_data, files_data):
@@ -115,5 +110,5 @@ class AuditLogMiddleware:
             status_code=response.status_code,
             success=success,
             details=json.dumps(_sanitize_payload(request.POST, request.FILES)),
-            ip_address=_client_ip(request),
+            ip_address=client_ip(request),
         )

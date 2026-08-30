@@ -51,7 +51,10 @@ class MonnifyWebhookView(APIView):
     authentication_classes = []
 
     def post(self, request):
+        from dashboard.utils import client_ip, log_webhook_event
+
         raw_body = request.data
+        ip = client_ip(request)
 
         # 0. Verify the request actually came from Monnify (HMAC-SHA512 of the raw
         # body, keyed with the client secret) before trusting anything in it —
@@ -62,6 +65,12 @@ class MonnifyWebhookView(APIView):
         ).hexdigest()
         if not signature or not hmac.compare_digest(signature, expected):
             logger.warning("Monnify webhook rejected: missing/invalid signature")
+            log_webhook_event(
+                "monnify", "signature_rejected",
+                detail="Missing or invalid monnify-signature header",
+                payload=raw_body.decode("utf-8", errors="replace")[:1000],
+                ip_address=ip,
+            )
             return Response({"error": "Invalid signature"}, status=401)
 
         # 1. Parse payload
@@ -69,6 +78,11 @@ class MonnifyWebhookView(APIView):
             payload = json.loads(raw_body.decode("utf-8"))
         except Exception as e:
             logger.error("Monnify webhook JSON parse error: %s", e)
+            log_webhook_event(
+                "monnify", "invalid_payload", detail=str(e),
+                payload=raw_body.decode("utf-8", errors="replace")[:1000],
+                ip_address=ip,
+            )
             return Response({"error": "Invalid JSON"}, status=400)
 
         # 2. Extract event data
@@ -93,6 +107,7 @@ class MonnifyWebhookView(APIView):
             "Monnify webhook amount=%s account=%s txn_ref=%s account_ref=%s",
             amount_paid, account_number, txn_ref, account_ref,
         )
+        webhook_detail = f"amount={amount_paid} account={account_number} txn_ref={txn_ref} account_ref={account_ref}"
 
         from wallet.models import Wallet, Transaction
 
@@ -134,6 +149,10 @@ class MonnifyWebhookView(APIView):
 
         if not wallet:
             logger.warning("Monnify webhook: wallet not found via any strategy")
+            log_webhook_event(
+                "monnify", "wallet_not_found", detail=webhook_detail,
+                payload=json.dumps(event_data)[:1000], ip_address=ip, event_type=event_type,
+            )
             return Response({"error": "Wallet not found"}, status=404)
 
         # ──────────────────────────────────────────────
@@ -143,13 +162,25 @@ class MonnifyWebhookView(APIView):
             credited = MonnifyService.credit_deposit(wallet, amount_paid, txn_ref)
         except Exception as e:
             logger.error("Monnify webhook credit error: %s", e)
+            log_webhook_event(
+                "monnify", "error", detail=f"{webhook_detail} error={e}",
+                payload=json.dumps(event_data)[:1000], ip_address=ip, event_type=event_type,
+            )
             return Response({"error": str(e)}, status=500)
 
         if not credited:
             logger.info("Monnify webhook duplicate: %s already processed", txn_ref)
+            log_webhook_event(
+                "monnify", "duplicate_ignored", detail=webhook_detail,
+                payload=json.dumps(event_data)[:1000], ip_address=ip, event_type=event_type,
+            )
             return Response({"status": "ignored"}, status=200)
 
         logger.info("Monnify webhook success: user_id=%s ref=%s", wallet.user_id, txn_ref)
+        log_webhook_event(
+            "monnify", "credited", detail=f"user_id={wallet.user_id} {webhook_detail}",
+            payload=json.dumps(event_data)[:1000], ip_address=ip, event_type=event_type,
+        )
         return Response({"status": "success"}, status=200)
 
 

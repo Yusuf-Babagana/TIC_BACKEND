@@ -35,6 +35,44 @@ class AuditLog(models.Model):
         return f"{who}: {self.summary} ({'ok' if self.success else 'failed'})"
 
 
+class WebhookLog(models.Model):
+    """
+    Records every incoming call to a provider webhook (Monnify deposits,
+    Nellobytes purchase callbacks, ...) regardless of outcome — including
+    rejected signatures and unmatched wallets — so "is the provider even
+    hitting my backend?" is answerable from the dashboard instead of
+    needing server log access (where these were previously logged at INFO,
+    a level nothing in this project's default logging config captures).
+    """
+    PROVIDER_CHOICES = [
+        ("monnify", "Monnify"),
+        ("nellobytes", "Nellobytes"),
+    ]
+    OUTCOME_CHOICES = [
+        ("received", "Received"),
+        ("signature_rejected", "Signature Rejected"),
+        ("invalid_payload", "Invalid Payload"),
+        ("wallet_not_found", "Wallet Not Found"),
+        ("duplicate_ignored", "Duplicate (Already Processed)"),
+        ("credited", "Credited"),
+        ("error", "Error"),
+    ]
+
+    provider = models.CharField(max_length=20, choices=PROVIDER_CHOICES)
+    event_type = models.CharField(max_length=100, blank=True, default="")
+    outcome = models.CharField(max_length=30, choices=OUTCOME_CHOICES)
+    detail = models.CharField(max_length=255, blank=True, default="")
+    payload = models.TextField(blank=True, default="")
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"[{self.provider}] {self.get_outcome_display()} @ {self.created_at:%Y-%m-%d %H:%M}"
+
+
 class AdminNotification(models.Model):
     NOTIFICATION_TYPES = [
         ("new_user", "New User Registration"),
