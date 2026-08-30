@@ -912,7 +912,48 @@ class DashboardSettingsUpdateView(LoginRequiredMixin, View):
         })
 
 
-from .models import AdminNotification, AuditLog
+from .models import AdminNotification, AuditLog, WebhookLog
+
+
+class DashboardWebhookLogView(LoginRequiredMixin, ListView):
+    template_name = "dashboard/webhooks.html"
+    login_url = "/dashboard/login/"
+    context_object_name = "logs"
+    paginate_by = 50
+
+    def get_queryset(self):
+        qs = WebhookLog.objects.all()
+
+        provider = self.request.GET.get("provider", "")
+        outcome = self.request.GET.get("outcome", "")
+        q = self.request.GET.get("q", "").strip()
+
+        if provider:
+            qs = qs.filter(provider=provider)
+        if outcome:
+            qs = qs.filter(outcome=outcome)
+        if q:
+            qs = qs.filter(
+                Q(detail__icontains=q) | Q(payload__icontains=q) | Q(event_type__icontains=q)
+            )
+        return qs
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["active_provider"] = self.request.GET.get("provider", "")
+        context["active_outcome"] = self.request.GET.get("outcome", "")
+        context["q"] = self.request.GET.get("q", "")
+        context["provider_choices"] = WebhookLog.PROVIDER_CHOICES
+        context["outcome_choices"] = WebhookLog.OUTCOME_CHOICES
+
+        last_hour = timezone.now() - timedelta(hours=1)
+        context["total_hits"] = WebhookLog.objects.count()
+        context["hits_last_hour"] = WebhookLog.objects.filter(created_at__gte=last_hour).count()
+        context["credited_count"] = WebhookLog.objects.filter(outcome="credited").count()
+        context["rejected_count"] = WebhookLog.objects.filter(
+            outcome__in=["signature_rejected", "invalid_payload", "wallet_not_found", "error"]
+        ).count()
+        return context
 
 
 class DashboardAuditLogView(LoginRequiredMixin, ListView):

@@ -1,0 +1,143 @@
+{% extends "dashboard/base.html" %}
+
+{% block title %}Webhook Log - TIC Admin{% endblock %}
+{% block heading %}Webhook Log{% endblock %}
+
+{% block content %}
+<style>
+    .wh-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; margin-bottom: 1.5rem; }
+    .wh-card { background: var(--card); border-radius: var(--radius); border: 1px solid var(--border); padding: 1.25rem; box-shadow: var(--shadow); }
+    .wh-card .value { font-size: 1.5rem; font-weight: 800; letter-spacing: -0.02em; }
+    .wh-card .label { color: var(--text-secondary); font-size: 0.78rem; margin-top: 0.15rem; font-weight: 500; }
+
+    .search-section { background: var(--card); border-radius: var(--radius); border: 1px solid var(--border); padding: 1rem 1.25rem; box-shadow: var(--shadow); margin-bottom: 1rem; }
+    .search-row { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
+    .search-row input, .search-row select { padding: 0.4rem 0.6rem; border: 1px solid var(--border); border-radius: 6px; font-size: 0.85rem; }
+    .search-row input:focus, .search-row select:focus { outline: none; border-color: var(--primary-muted); }
+    .search-row input[type="text"] { width: 220px; }
+
+    .wh-details summary { cursor: pointer; font-size: 0.78rem; color: var(--primary-muted); font-weight: 600; }
+    .wh-details pre {
+        margin-top: 0.4rem; padding: 0.6rem; background: var(--highlight); border-radius: 6px;
+        font-size: 0.72rem; max-width: 340px; white-space: pre-wrap; word-break: break-word;
+        border: 1px solid var(--border);
+    }
+    .mono { font-family: monospace; font-size: 0.75rem; }
+
+    .empty-hint {
+        background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
+        padding: 1.25rem; margin-bottom: 1rem; font-size: 0.85rem; color: var(--text-secondary);
+    }
+</style>
+
+<div class="wh-cards">
+    <div class="wh-card">
+        <div class="value" style="color:var(--accent);">{{ total_hits }}</div>
+        <div class="label">Total Webhook Hits</div>
+    </div>
+    <div class="wh-card">
+        <div class="value" style="color:var(--success);">{{ hits_last_hour }}</div>
+        <div class="label">Hits in Last Hour</div>
+    </div>
+    <div class="wh-card">
+        <div class="value" style="color:var(--success);">{{ credited_count }}</div>
+        <div class="label">Deposits Credited</div>
+    </div>
+    <div class="wh-card">
+        <div class="value" style="color:var(--danger);">{{ rejected_count }}</div>
+        <div class="label">Rejected / Errored</div>
+    </div>
+</div>
+
+{% if total_hits == 0 %}
+<div class="empty-hint">
+    No webhook calls recorded yet — this page only shows calls received <strong>after</strong> this
+    logging was added. If you expected a deposit and it isn't reflected here, either it happened
+    before this was deployed, or the provider genuinely isn't reaching this server (check your
+    Monnify dashboard's webhook delivery log and that the configured URL matches
+    <span class="mono">/wallet/webhook/monnify/</span> on this server's public domain).
+</div>
+{% endif %}
+
+<div class="search-section">
+    <form method="get" style="display:flex;flex-direction:column;gap:0.5rem;">
+        <div class="search-row">
+            <input type="text" name="q" placeholder="Search amount, account, ref..." value="{{ q }}">
+            <select name="provider">
+                <option value="">All Providers</option>
+                {% for value, label in provider_choices %}
+                <option value="{{ value }}" {% if active_provider == value %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+            <select name="outcome">
+                <option value="">All Outcomes</option>
+                {% for value, label in outcome_choices %}
+                <option value="{{ value }}" {% if active_outcome == value %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+            <button type="submit" class="btn btn-primary btn-sm">Search</button>
+            <a href="{% url 'dashboard_webhooks' %}" class="btn btn-sm btn-outline" style="text-decoration:none;">Clear</a>
+        </div>
+    </form>
+</div>
+
+<div class="table-wrap">
+<table>
+    <thead>
+        <tr>
+            <th>Time</th>
+            <th>Provider</th>
+            <th>Event</th>
+            <th>Outcome</th>
+            <th>Detail</th>
+            <th>IP</th>
+            <th>Payload</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for log in logs %}
+        <tr>
+            <td style="white-space:nowrap;">{{ log.created_at|date:"M d, H:i:s" }}</td>
+            <td>{{ log.get_provider_display }}</td>
+            <td class="mono">{{ log.event_type|default:"—" }}</td>
+            <td>
+                {% if log.outcome == 'credited' %}
+                <span class="badge SUCCESSFUL">{{ log.get_outcome_display }}</span>
+                {% elif log.outcome == 'duplicate_ignored' %}
+                <span class="badge pending">{{ log.get_outcome_display }}</span>
+                {% else %}
+                <span class="badge FAILED">{{ log.get_outcome_display }}</span>
+                {% endif %}
+            </td>
+            <td style="font-size:0.8rem;">{{ log.detail|truncatechars:60 }}</td>
+            <td class="mono">{{ log.ip_address|default:"—" }}</td>
+            <td>
+                {% if log.payload %}
+                <details class="wh-details">
+                    <summary>View</summary>
+                    <pre>{{ log.payload }}</pre>
+                </details>
+                {% else %}
+                &mdash;
+                {% endif %}
+            </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="7" class="empty">No webhook calls match your filters.</td></tr>
+        {% endfor %}
+    </tbody>
+</table>
+</div>
+
+{% if is_paginated %}
+<div class="pagination">
+    {% if page_obj.has_previous %}
+    <a href="?page={{ page_obj.previous_page_number }}{% if q %}&q={{ q }}{% endif %}{% if active_provider %}&provider={{ active_provider }}{% endif %}{% if active_outcome %}&outcome={{ active_outcome }}{% endif %}">← Prev</a>
+    {% endif %}
+    <span>Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+    {% if page_obj.has_next %}
+    <a href="?page={{ page_obj.next_page_number }}{% if q %}&q={{ q }}{% endif %}{% if active_provider %}&provider={{ active_provider }}{% endif %}{% if active_outcome %}&outcome={{ active_outcome }}{% endif %}">Next →</a>
+    {% endif %}
+</div>
+{% endif %}
+{% endblock %}
