@@ -222,17 +222,36 @@ class NellobytesService:
         working. Uses a shorter-than-default timeout since callers typically
         block a page render on this, but still generous enough that a merely
         slow (not down) provider doesn't read as "Unavailable".
+
+        Retries once on failure: this is a plain read (no wallet debit, no
+        order placed), so a retry can't double-charge anything, and Nellobytes
+        has been observed to return a transient INVALID_CREDENTIALS-shaped
+        failure that clears up on the very next call with the same
+        credentials — confirmed 2026-08-30, live account, same UserID/APIKey
+        succeeded on retry seconds later.
         """
         user_id, api_key = cls._credentials()
         params = {"UserID": user_id, "APIKey": api_key}
-        body = cls._get_json("/APIWalletBalanceV1.asp", params, timeout=timeout)
 
-        balance = body.get("balance")
-        if balance is None:
-            status_msg = body.get("status") or "UNKNOWN_ERROR"
-            logger.error("Nellobytes wallet balance check failed: %s", body)
-            raise NellobytesError(status_msg)
-        return body
+        last_error = None
+        for attempt in range(2):
+            try:
+                body = cls._get_json("/APIWalletBalanceV1.asp", params, timeout=timeout)
+            except NellobytesError as e:
+                last_error = e
+                continue
+
+            balance = body.get("balance")
+            if balance is not None:
+                return body
+
+            last_error = NellobytesError(body.get("status") or "UNKNOWN_ERROR")
+            logger.warning(
+                "Nellobytes wallet balance check failed (attempt %s/2): %s", attempt + 1, body,
+            )
+
+        logger.error("Nellobytes wallet balance check failed after retry: %s", last_error)
+        raise last_error
 
     @classmethod
     def query_order(cls, order_id=None, request_id=None):
