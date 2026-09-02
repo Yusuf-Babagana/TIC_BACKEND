@@ -214,6 +214,13 @@ class NellobytesService:
             raise NellobytesError("INVALID_METERNO")
         return customer_name
 
+    # Delay before each retry of get_wallet_balance, in seconds. A back-to-back
+    # immediate retry (0s) turned out not to be enough — the observed
+    # INVALID_CREDENTIALS blips on Nellobytes' side outlast a single network
+    # round trip, so later attempts wait a bit longer to actually land outside
+    # the blip window instead of just repeating the same failure instantly.
+    WALLET_BALANCE_RETRY_DELAYS = (1.5, 3)
+
     @classmethod
     def get_wallet_balance(cls, timeout=20):
         """
@@ -223,18 +230,26 @@ class NellobytesService:
         block a page render on this, but still generous enough that a merely
         slow (not down) provider doesn't read as "Unavailable".
 
-        Retries once on failure: this is a plain read (no wallet debit, no
-        order placed), so a retry can't double-charge anything, and Nellobytes
-        has been observed to return a transient INVALID_CREDENTIALS-shaped
-        failure that clears up on the very next call with the same
-        credentials — confirmed 2026-08-30, live account, same UserID/APIKey
-        succeeded on retry seconds later.
+        Retries on failure (up to 3 attempts total): this is a plain read (no
+        wallet debit, no order placed), so retrying can't double-charge
+        anything, and Nellobytes has been observed to return a transient
+        INVALID_CREDENTIALS-shaped failure — confirmed 2026-08-30, live
+        account, same UserID/APIKey succeeded when re-run seconds later. A
+        single immediate retry (2026-08-30's first fix) wasn't always enough
+        on its own — seen recurring 2026-09-02 — so this now waits between
+        attempts rather than retrying instantly.
         """
+        import time
+
         user_id, api_key = cls._credentials()
         params = {"UserID": user_id, "APIKey": api_key}
 
         last_error = None
-        for attempt in range(2):
+        attempts = 1 + len(cls.WALLET_BALANCE_RETRY_DELAYS)
+        for attempt in range(attempts):
+            if attempt > 0:
+                time.sleep(cls.WALLET_BALANCE_RETRY_DELAYS[attempt - 1])
+
             try:
                 body = cls._get_json("/APIWalletBalanceV1.asp", params, timeout=timeout)
             except NellobytesError as e:
@@ -247,10 +262,11 @@ class NellobytesService:
 
             last_error = NellobytesError(body.get("status") or "UNKNOWN_ERROR")
             logger.warning(
-                "Nellobytes wallet balance check failed (attempt %s/2): %s", attempt + 1, body,
+                "Nellobytes wallet balance check failed (attempt %s/%s): %s",
+                attempt + 1, attempts, body,
             )
 
-        logger.error("Nellobytes wallet balance check failed after retry: %s", last_error)
+        logger.error("Nellobytes wallet balance check failed after %s attempts: %s", attempts, last_error)
         raise last_error
 
     @classmethod
