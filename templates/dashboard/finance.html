@@ -58,6 +58,12 @@
         {% if provider_balance is not None %}
         <div class="value{% if provider_balance < 5000 %} orange{% else %} green{% endif %}">₦{{ provider_balance|floatformat:0 }}</div>
         <div class="label">Balance Overview</div>
+        {% elif cached_provider_balance is not None %}
+        <div class="value{% if cached_provider_balance < 5000 %} orange{% else %} green{% endif %}">₦{{ cached_provider_balance|floatformat:0 }}</div>
+        <div class="label">Balance Overview</div>
+        <div class="label" style="margin-top:0.35rem;" title="Live check failed: {{ provider_balance_error }}">
+            as of {{ cached_provider_balance_at|date:"M d, H:i" }} &middot; live check failing
+        </div>
         {% else %}
         <div class="value orange" style="font-size:1rem;">Unavailable</div>
         <div class="label">Balance Overview</div>
