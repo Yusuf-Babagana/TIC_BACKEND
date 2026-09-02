@@ -58,6 +58,11 @@
         {% if provider_balance is not None %}
         <div class="value{% if provider_balance < 5000 %} orange{% else %} green{% endif %}">₦{{ provider_balance|floatformat:0 }}</div>
         <div class="label">Balance Overview</div>
+        {% if provider_balance_is_cached %}
+        <div class="label" style="margin-top:0.35rem;" title="Rechecked at most once every 5 minutes to avoid hammering the provider">
+            as of {{ cached_provider_balance_at|date:"M d, H:i" }}
+        </div>
+        {% endif %}
         {% elif cached_provider_balance is not None %}
         <div class="value{% if cached_provider_balance < 5000 %} orange{% else %} green{% endif %}">₦{{ cached_provider_balance|floatformat:0 }}</div>
         <div class="label">Balance Overview</div>
