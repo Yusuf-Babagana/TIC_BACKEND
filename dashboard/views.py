@@ -446,27 +446,42 @@ class DashboardFinanceView(LoginRequiredMixin, TemplateView):
         context["total_wallets"] = Wallet.objects.count()
 
         # Balance of the account purchases are funded from (see nellobytes.py).
-        # Best-effort: never let a slow/down provider break the page. Nellobytes'
-        # balance endpoint has shown recurring transient failures even with
-        # retries, so on failure fall back to the last successful reading
-        # (cached on SiteSettings) instead of a bare "Unavailable".
+        # Best-effort: never let a slow/down provider break the page.
+        #
+        # Throttled to at most one live call per 5 minutes: repeated Finance
+        # Center loads were each firing up to 3 requests at this endpoint
+        # (from the earlier retry logic), and a sustained INVALID_CREDENTIALS
+        # started right after — plausibly Nellobytes rate-limiting/blocking
+        # this specific endpoint in response to the request volume. Reusing
+        # the cached reading between checks removes that risk regardless of
+        # whether it was the actual cause.
         site_settings = SiteSettings.get_solo()
-        try:
-            nb_wallet = NellobytesService.get_wallet_balance()
-            # Nellobytes formats balance with thousands separators (e.g. "10,071.90").
-            live_balance = float(str(nb_wallet["balance"]).replace(",", ""))
-            context["provider_balance"] = live_balance
-            context["provider_account_id"] = nb_wallet.get("id")
-            context["provider_account_phone"] = nb_wallet.get("phoneno")
+        cache_is_fresh = (
+            site_settings.cached_provider_balance_at is not None
+            and timezone.now() - site_settings.cached_provider_balance_at < timedelta(minutes=5)
+        )
 
-            site_settings.cached_provider_balance = live_balance
-            site_settings.cached_provider_balance_at = timezone.now()
-            site_settings.save(update_fields=["cached_provider_balance", "cached_provider_balance_at"])
-        except (NellobytesError, TypeError, ValueError) as e:
-            context["provider_balance"] = None
-            context["provider_balance_error"] = str(e)
-            context["cached_provider_balance"] = site_settings.cached_provider_balance
+        if cache_is_fresh:
+            context["provider_balance"] = float(site_settings.cached_provider_balance)
+            context["provider_balance_is_cached"] = True
             context["cached_provider_balance_at"] = site_settings.cached_provider_balance_at
+        else:
+            try:
+                nb_wallet = NellobytesService.get_wallet_balance()
+                # Nellobytes formats balance with thousands separators (e.g. "10,071.90").
+                live_balance = float(str(nb_wallet["balance"]).replace(",", ""))
+                context["provider_balance"] = live_balance
+                context["provider_account_id"] = nb_wallet.get("id")
+                context["provider_account_phone"] = nb_wallet.get("phoneno")
+
+                site_settings.cached_provider_balance = live_balance
+                site_settings.cached_provider_balance_at = timezone.now()
+                site_settings.save(update_fields=["cached_provider_balance", "cached_provider_balance_at"])
+            except (NellobytesError, TypeError, ValueError) as e:
+                context["provider_balance"] = None
+                context["provider_balance_error"] = str(e)
+                context["cached_provider_balance"] = site_settings.cached_provider_balance
+                context["cached_provider_balance_at"] = site_settings.cached_provider_balance_at
 
         q = self.request.GET.get("q", "").strip()
         txn_status = self.request.GET.get("status", "")
