@@ -64,6 +64,15 @@ class SiteSettings(models.Model):
     """
     whatsapp_number = models.CharField(max_length=20, blank=True, default="")
 
+    # Last successful Nellobytes reseller-balance check, so the Finance
+    # Center can show a "last known" figure (with its timestamp) instead of
+    # a bare "Unavailable" whenever the live check is currently failing —
+    # Nellobytes' balance endpoint has shown recurring transient failures.
+    cached_provider_balance = models.DecimalField(
+        max_digits=12, decimal_places=2, null=True, blank=True
+    )
+    cached_provider_balance_at = models.DateTimeField(null=True, blank=True)
+
     class Meta:
         verbose_name = "Site Settings"
         verbose_name_plural = "Site Settings"
