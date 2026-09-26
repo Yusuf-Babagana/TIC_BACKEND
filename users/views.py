@@ -244,6 +244,18 @@ class SiteSettingsView(APIView):
         return Response({"whatsapp_number": settings_obj.whatsapp_number})
 
 
+class FeatureFlagsView(APIView):
+    """Public, unauthenticated — the app fetches this on start to know which business
+    modules the admin currently has enabled."""
+    authentication_classes = []
+    permission_classes = [permissions.AllowAny]
+
+    def get(self, request):
+        from .models import FeatureFlag
+
+        return Response(FeatureFlag.get_flags_dict())
+
+
 class MyReferralStatsView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 

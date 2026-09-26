@@ -2,6 +2,7 @@ from django.urls import path
 from rest_framework_simplejwt.views import TokenRefreshView
 from .views import (
     ChangeTransactionPinView,
+    FeatureFlagsView,
     LoginView,
     LogoutView,
     MeView,
@@ -31,4 +32,5 @@ urlpatterns = [
     path('referral/', MyReferralView.as_view(), name='my-referral'),
     path('referral/stats/', MyReferralStatsView.as_view(), name='my-referral-stats'),
     path('site-settings/', SiteSettingsView.as_view(), name='site-settings'),
+    path('feature-flags/', FeatureFlagsView.as_view(), name='feature-flags'),
 ]

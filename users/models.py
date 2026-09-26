@@ -90,6 +90,49 @@ class SiteSettings(models.Model):
         return obj
 
 
+class FeatureFlag(models.Model):
+    """
+    Admin on/off switches for the app's business modules (Marketplace, VTU services, etc.) —
+    lets staff pause a section (maintenance, provider outage, restock) without a deploy. Read
+    by the mobile app's GET /users/feature-flags/ and toggled from the dashboard's Business
+    Controls page. UI-level only: the app shows a "temporarily unavailable" message for a
+    disabled feature, this does not itself block the underlying API endpoints.
+    """
+    KEY_MARKETPLACE = "marketplace"
+    KEY_FASHION = "fashion"
+    KEY_AIRTIME = "airtime"
+    KEY_DATA = "data"
+    KEY_CABLE_TV = "cable_tv"
+    KEY_ELECTRICITY = "electricity"
+    KEY_WALLET_FUNDING = "wallet_funding"
+    KEY_CHOICES = [
+        (KEY_MARKETPLACE, "Marketplace"),
+        (KEY_FASHION, "Fashion / Custom Tailoring"),
+        (KEY_AIRTIME, "Airtime Purchase"),
+        (KEY_DATA, "Data Bundle Purchase"),
+        (KEY_CABLE_TV, "Cable TV Purchase"),
+        (KEY_ELECTRICITY, "Electricity Bill Payment"),
+        (KEY_WALLET_FUNDING, "Wallet Funding"),
+    ]
+
+    key = models.CharField(max_length=30, choices=KEY_CHOICES, unique=True)
+    is_enabled = models.BooleanField(default=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["key"]
+
+    def __str__(self):
+        return f"{self.get_key_display()}: {'ON' if self.is_enabled else 'OFF'}"
+
+    @classmethod
+    def get_flags_dict(cls):
+        # Every defined key defaults to enabled if it has no row yet, so a freshly-added
+        # KEY_CHOICES entry doesn't silently disable a feature before an admin ever touches it.
+        existing = dict(cls.objects.values_list("key", "is_enabled"))
+        return {key: existing.get(key, True) for key, _ in cls.KEY_CHOICES}
+
+
 class Referral(models.Model):
     referrer = models.ForeignKey(
         User, on_delete=models.CASCADE, related_name="referrals_made"

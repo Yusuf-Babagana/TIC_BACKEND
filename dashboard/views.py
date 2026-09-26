@@ -25,7 +25,7 @@ from fashion.models import (
     UserMeasurement,
 )
 from marketing.models import Flyer as FlyerModel, MarketingGallery as MarketingGalleryModel, Order as OrderModel
-from users.models import Referral, ReferralConfig, SiteSettings
+from users.models import FeatureFlag, Referral, ReferralConfig, SiteSettings
 from vtu.models import DataPlan, Provider
 from vtu.nellobytes import NellobytesError, NellobytesService
 from wallet.models import Transaction, Wallet
@@ -936,6 +936,37 @@ class DashboardSettingsUpdateView(LoginRequiredMixin, View):
         return JsonResponse({
             "message": "WhatsApp support number updated",
             "whatsapp_number": whatsapp_number,
+        })
+
+
+class DashboardFeatureFlagsView(LoginRequiredMixin, TemplateView):
+    template_name = "dashboard/feature_flags.html"
+    login_url = "/dashboard/login/"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        flags = FeatureFlag.get_flags_dict()
+        context["flags"] = [
+            {"key": key, "label": label, "is_enabled": flags[key]}
+            for key, label in FeatureFlag.KEY_CHOICES
+        ]
+        return context
+
+
+class DashboardFeatureFlagToggleView(LoginRequiredMixin, View):
+    login_url = "/dashboard/login/"
+
+    def post(self, request, key):
+        valid_keys = dict(FeatureFlag.KEY_CHOICES)
+        if key not in valid_keys:
+            return JsonResponse({"error": "Unknown feature key"}, status=400)
+
+        flag, _ = FeatureFlag.objects.get_or_create(key=key, defaults={"is_enabled": True})
+        flag.is_enabled = not flag.is_enabled
+        flag.save(update_fields=["is_enabled", "updated_at"])
+        return JsonResponse({
+            "is_enabled": flag.is_enabled,
+            "message": f"{valid_keys[key]} {'enabled' if flag.is_enabled else 'disabled'}",
         })
 
 

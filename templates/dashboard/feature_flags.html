@@ -1,0 +1,84 @@
+{% extends "dashboard/base.html" %}
+
+{% block title %}Business Controls - TIC Admin{% endblock %}
+{% block heading %}Business Controls{% endblock %}
+
+{% block content %}
+<style>
+    .flag-list { display: flex; flex-direction: column; gap: 10px; }
+    .flag-row {
+        background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
+        box-shadow: var(--shadow); padding: 1rem 1.25rem;
+        display: flex; align-items: center; justify-content: space-between; gap: 1rem;
+    }
+    .flag-name { font-size: 0.95rem; font-weight: 700; }
+    .flag-status { font-size: 0.78rem; margin-top: 0.15rem; }
+    .flag-status.on { color: var(--success); }
+    .flag-status.off { color: var(--danger); }
+    .switch { position: relative; display: inline-block; width: 46px; height: 26px; flex-shrink: 0; }
+    .switch input { opacity: 0; width: 0; height: 0; }
+    .switch .slider {
+        position: absolute; cursor: pointer; inset: 0; background: var(--border);
+        border-radius: 999px; transition: background 0.15s;
+    }
+    .switch .slider::before {
+        content: ""; position: absolute; height: 20px; width: 20px; left: 3px; bottom: 3px;
+        background: #fff; border-radius: 50%; transition: transform 0.15s;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.25);
+    }
+    .switch input:checked + .slider { background: var(--success); }
+    .switch input:checked + .slider::before { transform: translateX(20px); }
+    .switch input:disabled + .slider { opacity: 0.5; cursor: not-allowed; }
+    .empty-hint {
+        background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
+        padding: 1.25rem; font-size: 0.85rem; color: var(--text-secondary);
+    }
+</style>
+
+<div class="empty-hint" style="margin-bottom:1.25rem;">
+    Turning a module off shows a "temporarily unavailable" message in the app instead of that
+    screen's normal content — useful for maintenance, a provider outage, or restocking. It
+    takes effect the next time a user opens that screen (usually within a minute).
+</div>
+
+<div class="flag-list">
+    {% for flag in flags %}
+    <div class="flag-row" id="flag-{{ flag.key }}">
+        <div>
+            <div class="flag-name">{{ flag.label }}</div>
+            <div class="flag-status {% if flag.is_enabled %}on{% else %}off{% endif %}" id="flag-status-{{ flag.key }}">
+                {{ flag.is_enabled|yesno:"Active,Disabled" }}
+            </div>
+        </div>
+        <label class="switch">
+            <input type="checkbox" {% if flag.is_enabled %}checked{% endif %} onchange="toggleFlag('{{ flag.key }}', this)">
+            <span class="slider"></span>
+        </label>
+    </div>
+    {% endfor %}
+</div>
+
+{% csrf_token %}
+<script>
+function toggleFlag(key, checkbox) {
+    checkbox.disabled = true;
+    const form = new FormData();
+    form.append('csrfmiddlewaretoken', getCSRF());
+    fetch(`/dashboard/feature-flags/${key}/toggle/`, { method: 'POST', body: form, headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+        .then(r => r.json())
+        .then(d => {
+            checkbox.disabled = false;
+            if (d.error) { showToast(d.error, true); checkbox.checked = !checkbox.checked; return; }
+            const statusEl = document.getElementById('flag-status-' + key);
+            statusEl.textContent = d.is_enabled ? 'Active' : 'Disabled';
+            statusEl.className = 'flag-status ' + (d.is_enabled ? 'on' : 'off');
+            showToast(d.message);
+        })
+        .catch(() => {
+            checkbox.disabled = false;
+            checkbox.checked = !checkbox.checked;
+            showToast('Failed to update — try again', true);
+        });
+}
+</script>
+{% endblock %}
