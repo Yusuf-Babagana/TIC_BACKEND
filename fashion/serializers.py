@@ -52,7 +52,7 @@ class CustomStyleRequestSerializer(serializers.ModelSerializer):
         model = CustomStyleRequest
         fields = [
             'id', 'user', 'description', 'reference_image', 'status', 'price_quote',
-            'fabric_fee', 'tailoring_fee', 'fabric_grade', 'fabric_color',
+            'fabric_fee', 'tailoring_fee', 'fabric_grade', 'fabric_color', 'preferred_color',
             'delivery_address', 'quote_expires_at', 'created_at',
         ]
         read_only_fields = [

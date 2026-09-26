@@ -73,6 +73,9 @@
                 {% else %}
                 <div style="color:var(--text-tertiary);">No color picked</div>
                 {% endif %}
+                {% elif req.preferred_color %}
+                <div>🎨 {{ req.preferred_color }}</div>
+                <div style="color:var(--text-tertiary);font-size:0.7rem;">Customer's own fabric</div>
                 {% else %}
                 <span style="color:var(--text-tertiary);">—</span>
                 {% endif %}

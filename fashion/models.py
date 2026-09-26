@@ -114,6 +114,10 @@ class CustomStyleRequest(models.Model):
     fabric_color = models.ForeignKey(
         FabricColor, on_delete=models.SET_NULL, null=True, blank=True, related_name="requests"
     )
+    # Independent of fabric_color/fabric_grade — a customer bringing their own fabric (no
+    # purchase through the app) still needs a way to tell the tailor what color to use. Free
+    # text rather than another FK since there's no catalog of swatches to validate against here.
+    preferred_color = models.CharField(max_length=50, blank=True, default="")
     delivery_address = models.TextField(blank=True, default="")
     quote_expires_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
