@@ -475,21 +475,30 @@ class NellobytesCallbackView(APIView):
     authentication_classes = []
 
     def get(self, request):
-        return self._handle(request.query_params)
+        return self._handle(request, request.query_params)
 
     def post(self, request):
         data = request.data if isinstance(request.data, dict) else request.query_params
-        return self._handle(data)
+        return self._handle(request, data)
 
-    def _handle(self, data):
+    def _handle(self, request, data):
+        from dashboard.utils import client_ip, log_webhook_event
         from wallet.models import Transaction
 
         order_id = data.get("orderid")
         request_id = data.get("requestid")
+        ip = client_ip(request)
+        ref = f"order_id={order_id} request_id={request_id}"
 
         logger.info(
             "Nellobytes callback received: order_id=%s request_id=%s (fields beyond these are untrusted)",
             order_id, request_id,
+        )
+        # Recorded unconditionally, before any lookup/validation — this row alone answers
+        # "is Nellobytes actually hitting my backend?" regardless of what happens next.
+        log_webhook_event(
+            "nellobytes", "received", detail=ref,
+            payload=str(dict(data))[:1000], ip_address=ip,
         )
 
         txn = None
@@ -503,11 +512,17 @@ class NellobytesCallbackView(APIView):
                 "Nellobytes callback: no matching Transaction for order_id=%s request_id=%s",
                 order_id, request_id,
             )
+            log_webhook_event(
+                "nellobytes", "error", detail=f"No matching transaction — {ref}", ip_address=ip,
+            )
             return Response({"status": "not_found"}, status=404)
 
         if txn.status != "PENDING":
             # Already resolved — nothing to do. Also means we never re-derive an
             # outcome from a stale/replayed callback.
+            log_webhook_event(
+                "nellobytes", "duplicate_ignored", detail=f"status={txn.status} — {ref}", ip_address=ip,
+            )
             return Response({"status": "already_resolved"}, status=200)
 
         # Nellobytes doesn't sign this callback, so its orderstatus/statuscode
@@ -524,11 +539,17 @@ class NellobytesCallbackView(APIView):
                 "Nellobytes callback: query_order failed for order_id=%s: %s",
                 txn.order_id, e,
             )
+            log_webhook_event(
+                "nellobytes", "error", detail=f"query_order failed: {e} — {ref}", ip_address=ip,
+            )
             return Response({"status": "query_failed"}, status=502)
 
         outcome = NellobytesService.resolve_order_outcome(
             body.get("orderstatus") or body.get("status"), body.get("statuscode")
         )
         NellobytesService.apply_order_outcome(txn.pk, outcome)
+        log_webhook_event(
+            "nellobytes", "resolved", detail=f"outcome={outcome} — {ref}", ip_address=ip,
+        )
 
         return Response({"status": "acknowledged"}, status=200)

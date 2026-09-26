@@ -101,9 +101,9 @@
             <td>{{ log.get_provider_display }}</td>
             <td class="mono">{{ log.event_type|default:"—" }}</td>
             <td>
-                {% if log.outcome == 'credited' %}
+                {% if log.outcome == 'credited' or log.outcome == 'resolved' %}
                 <span class="badge SUCCESSFUL">{{ log.get_outcome_display }}</span>
-                {% elif log.outcome == 'duplicate_ignored' %}
+                {% elif log.outcome == 'duplicate_ignored' or log.outcome == 'received' %}
                 <span class="badge pending">{{ log.get_outcome_display }}</span>
                 {% else %}
                 <span class="badge FAILED">{{ log.get_outcome_display }}</span>

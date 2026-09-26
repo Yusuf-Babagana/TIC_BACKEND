@@ -55,6 +55,7 @@ class WebhookLog(models.Model):
         ("wallet_not_found", "Wallet Not Found"),
         ("duplicate_ignored", "Duplicate (Already Processed)"),
         ("credited", "Credited"),
+        ("resolved", "Resolved"),
         ("error", "Error"),
     ]
 
