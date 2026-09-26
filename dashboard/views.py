@@ -544,11 +544,11 @@ class DashboardWalletAdjustView(LoginRequiredMixin, View):
     def post(self, request):
         from decimal import Decimal, InvalidOperation
 
-        user_id = request.POST.get("user_id")
+        user_input = (request.POST.get("user_id") or "").strip()
         action = request.POST.get("action")
         amount_str = request.POST.get("amount")
 
-        if not all([user_id, action, amount_str]):
+        if not all([user_input, action, amount_str]):
             return JsonResponse({"error": "user_id, action, and amount required"}, status=400)
 
         if action not in ("credit", "debit"):
@@ -561,11 +561,21 @@ class DashboardWalletAdjustView(LoginRequiredMixin, View):
         except InvalidOperation:
             return JsonResponse({"error": "invalid amount"}, status=400)
 
+        # The field is labelled "User ID or Username" but only ever did a numeric id= lookup —
+        # typing a username threw an uncaught ValueError (int() on a non-numeric string), which
+        # returned an HTML 500 page instead of JSON and surfaced to the admin as a bare
+        # "Request failed" toast with no indication of what actually went wrong.
+        # Many usernames in this system are phone numbers, so a numeric user_input can't be
+        # assumed to be a database id — try id first when numeric, but always fall back to a
+        # username match (case-insensitive) before giving up.
         User = get_user_model()
-        try:
-            user = User.objects.get(id=user_id)
-        except User.DoesNotExist:
-            return JsonResponse({"error": "User not found"}, status=404)
+        user = None
+        if user_input.isdigit():
+            user = User.objects.filter(id=user_input).first()
+        if user is None:
+            user = User.objects.filter(username__iexact=user_input).first()
+        if user is None:
+            return JsonResponse({"error": f'No user found matching "{user_input}"'}, status=404)
 
         try:
             from django.db import transaction as db_transaction
