@@ -16,6 +16,7 @@ from django.views import View
 from django.contrib.auth import get_user_model
 
 from fashion.models import (
+    Broadcast,
     CustomStyleRequest,
     FabricBrand,
     FabricColor,
@@ -935,6 +936,51 @@ class DashboardSettingsUpdateView(LoginRequiredMixin, View):
         return JsonResponse({
             "message": "WhatsApp support number updated",
             "whatsapp_number": whatsapp_number,
+        })
+
+
+class DashboardBroadcastView(LoginRequiredMixin, TemplateView):
+    template_name = "dashboard/broadcasts.html"
+    login_url = "/dashboard/login/"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["broadcasts"] = Broadcast.objects.select_related("sent_by")[:50]
+        context["category_choices"] = Broadcast.CATEGORY_CHOICES
+        return context
+
+
+class DashboardBroadcastSendView(LoginRequiredMixin, View):
+    login_url = "/dashboard/login/"
+
+    def post(self, request):
+        category = request.POST.get("category", "").strip()
+        title = request.POST.get("title", "").strip()
+        body = request.POST.get("body", "").strip()
+
+        if category not in dict(Broadcast.CATEGORY_CHOICES):
+            return JsonResponse({"error": "Invalid category"}, status=400)
+        if not title:
+            return JsonResponse({"error": "Title is required"}, status=400)
+        if len(title) > 60:
+            return JsonResponse({"error": "Title must be 60 characters or fewer"}, status=400)
+        if not body:
+            return JsonResponse({"error": "Message is required"}, status=400)
+        if len(body) > 400:
+            return JsonResponse({"error": "Message must be 400 characters or fewer"}, status=400)
+
+        broadcast = Broadcast.objects.create(
+            category=category,
+            title=title,
+            body=body,
+            sent_by=request.user,
+        )
+        broadcast.send()
+
+        return JsonResponse({
+            "message": f"Sent to {broadcast.recipient_count} users ({broadcast.push_sent_count} push notifications delivered)",
+            "recipient_count": broadcast.recipient_count,
+            "push_sent_count": broadcast.push_sent_count,
         })
 
 

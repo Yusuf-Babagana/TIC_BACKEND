@@ -3,6 +3,8 @@ from django.urls import path
 from .views import (
     AdminDashboardView,
     DashboardAuditLogView,
+    DashboardBroadcastSendView,
+    DashboardBroadcastView,
     DashboardFabricBrandCreateView,
     DashboardFabricBrandDeleteView,
     DashboardFabricBrandUpdateView,
@@ -115,6 +117,8 @@ urlpatterns = [
     ),
     path("settings/", DashboardSettingsView.as_view(), name="dashboard_settings"),
     path("settings/update/", DashboardSettingsUpdateView.as_view(), name="dashboard_settings_update"),
+    path("broadcasts/", DashboardBroadcastView.as_view(), name="dashboard_broadcasts"),
+    path("broadcasts/send/", DashboardBroadcastSendView.as_view(), name="dashboard_broadcast_send"),
     path("audit/", DashboardAuditLogView.as_view(), name="dashboard_audit"),
     path("webhooks/", DashboardWebhookLogView.as_view(), name="dashboard_webhooks"),
     path("notifications/", NotificationPollView.as_view(), name="dashboard_notifications"),

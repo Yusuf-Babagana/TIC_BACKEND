@@ -122,7 +122,9 @@ class CustomStyleRequest(models.Model):
 class Notification(models.Model):
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='notifications')
     order = models.ForeignKey(CustomStyleRequest, on_delete=models.CASCADE, null=True, blank=True)
-    message = models.CharField(max_length=255)
+    # 500, not 255 — a Broadcast-sourced notification packs an icon + title + body into this
+    # field (see Broadcast.send()) and 255 was too tight for that combination.
+    message = models.CharField(max_length=500)
     is_read = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -131,3 +133,80 @@ class Notification(models.Model):
 
     def __str__(self):
         return f"[{'Read' if self.is_read else 'Unread'}] {self.user.username}: {self.message[:50]}"
+
+
+class Broadcast(models.Model):
+    """
+    An admin-authored announcement sent to every active user in one shot — maintenance
+    notices, bonus/promo pushes, or anything else vital. Sending it (see send()) fans out
+    a Notification row per user plus a push notification, so it shows up both in-app and
+    even if the app isn't open. This row itself is just the send record/history.
+    """
+    CATEGORY_GENERAL = "general"
+    CATEGORY_MAINTENANCE = "maintenance"
+    CATEGORY_BONUS = "bonus"
+    CATEGORY_CHOICES = [
+        (CATEGORY_GENERAL, "General / Vital Info"),
+        (CATEGORY_MAINTENANCE, "Maintenance Notice"),
+        (CATEGORY_BONUS, "Bonus / Promotion"),
+    ]
+    CATEGORY_ICONS = {
+        CATEGORY_GENERAL: "📢",
+        CATEGORY_MAINTENANCE: "🔧",
+        CATEGORY_BONUS: "🎁",
+    }
+
+    category = models.CharField(max_length=20, choices=CATEGORY_CHOICES, default=CATEGORY_GENERAL)
+    title = models.CharField(max_length=60)
+    body = models.CharField(max_length=400)
+    sent_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="broadcasts_sent"
+    )
+    recipient_count = models.PositiveIntegerField(default=0)
+    push_sent_count = models.PositiveIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"[{self.category}] {self.title}"
+
+    @property
+    def icon(self):
+        return self.CATEGORY_ICONS.get(self.category, "📢")
+
+    def send(self):
+        """
+        Fans this announcement out to every active user: one Notification row each (so it
+        shows in the in-app list) plus a batched Expo push (so it shows even with the app
+        closed). Best-effort on the push side — a delivery failure never blocks the in-app
+        side, which is the reliable source of truth once the user opens the app.
+        """
+        from core.push import send_push_notifications_bulk
+        from django.contrib.auth import get_user_model
+
+        User = get_user_model()
+        message = f"{self.icon} {self.title}\n{self.body}"
+
+        recipients = list(User.objects.filter(is_active=True))
+        Notification.objects.bulk_create(
+            [Notification(user=user, message=message) for user in recipients]
+        )
+
+        push_messages = [
+            {
+                "to": user.push_token,
+                "title": f"{self.icon} {self.title}",
+                "body": self.body,
+                "sound": "default",
+                "data": {"type": "broadcast", "category": self.category},
+            }
+            for user in recipients
+            if user.push_token
+        ]
+        sent = send_push_notifications_bulk(push_messages)
+
+        self.recipient_count = len(recipients)
+        self.push_sent_count = sent
+        self.save(update_fields=["recipient_count", "push_sent_count"])

@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Category, FabricBrand, FabricColor, FabricGrade, Notification, Product, UserMeasurement, CustomStyleRequest
+from .models import Broadcast, Category, FabricBrand, FabricColor, FabricGrade, Notification, Product, UserMeasurement, CustomStyleRequest
 
 @admin.register(Category)
 class CategoryAdmin(admin.ModelAdmin):
@@ -73,3 +73,17 @@ class NotificationAdmin(admin.ModelAdmin):
     list_display = ('id', 'user', 'message', 'is_read', 'created_at')
     list_filter = ('is_read', 'created_at')
     search_fields = ('user__username', 'user__email', 'message')
+
+
+@admin.register(Broadcast)
+class BroadcastAdmin(admin.ModelAdmin):
+    # Read-only history here — creating a row through this admin form wouldn't actually
+    # send anything (that only happens via Broadcast.send(), called from the dashboard's
+    # "Announcements" page). Send broadcasts from there, not here.
+    list_display = ('id', 'category', 'title', 'sent_by', 'recipient_count', 'push_sent_count', 'created_at')
+    list_filter = ('category', 'created_at')
+    search_fields = ('title', 'body')
+    readonly_fields = ('category', 'title', 'body', 'sent_by', 'recipient_count', 'push_sent_count', 'created_at')
+
+    def has_add_permission(self, request):
+        return False

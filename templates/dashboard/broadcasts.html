@@ -1,0 +1,135 @@
+{% extends "dashboard/base.html" %}
+
+{% block title %}Announcements - TIC Admin{% endblock %}
+{% block heading %}Announcements{% endblock %}
+
+{% block content %}
+<style>
+    .compose-card { background: var(--card); border-radius: var(--radius); border: 1px solid var(--border); box-shadow: var(--shadow); padding: 1.5rem; margin-bottom: 1.5rem; }
+    .compose-card h2 { font-size: 1rem; margin-bottom: 0.25rem; }
+    .compose-hint { font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 1.25rem; }
+    .compose-form .form-row { display: flex; gap: 1rem; flex-wrap: wrap; margin-bottom: 1rem; }
+    .compose-form .form-group { flex: 1; min-width: 220px; }
+    .compose-form label { display: block; font-size: 0.82rem; font-weight: 600; margin-bottom: 0.35rem; }
+    .compose-form select, .compose-form input[type="text"], .compose-form textarea {
+        width: 100%; padding: 0.55rem 0.7rem; border: 1px solid var(--border); border-radius: 8px; font-size: 0.9rem; font-family: inherit;
+    }
+    .compose-form select:focus, .compose-form input:focus, .compose-form textarea:focus { outline: none; border-color: var(--primary-muted); }
+    .compose-form textarea { resize: vertical; min-height: 90px; }
+    .char-count { font-size: 0.75rem; color: var(--text-secondary); text-align: right; margin-top: 0.25rem; }
+    .category-badge { display: inline-block; padding: 0.15rem 0.55rem; border-radius: 999px; font-size: 0.72rem; font-weight: 700; }
+    .category-badge.general { background: rgba(59,130,246,0.12); color: #3B82F6; }
+    .category-badge.maintenance { background: rgba(245,158,11,0.12); color: #F59E0B; }
+    .category-badge.bonus { background: rgba(16,185,129,0.12); color: #10B981; }
+</style>
+
+{% csrf_token %}
+
+<div class="compose-card">
+    <h2>📣 Send an Announcement</h2>
+    <p class="compose-hint">
+        Goes out to every active user right away — as a notification in the app, and as a push
+        notification that reaches their device even if the app isn't open.
+    </p>
+    <div class="compose-form">
+        <div class="form-row">
+            <div class="form-group">
+                <label>Category</label>
+                <select id="bcCategory">
+                    {% for value, label in category_choices %}
+                    <option value="{{ value }}">{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Title <span id="titleCount" class="char-count" style="display:inline;">(0/60)</span></label>
+                <input type="text" id="bcTitle" maxlength="60" placeholder="e.g. Scheduled Maintenance Tonight">
+            </div>
+        </div>
+        <div class="form-group" style="margin-bottom:0.25rem;">
+            <label>Message</label>
+            <textarea id="bcBody" maxlength="400" placeholder="Write the full announcement here..."></textarea>
+            <div class="char-count"><span id="bodyCount">0</span>/400</div>
+        </div>
+        <button class="btn btn-success" onclick="sendBroadcast()" id="sendBtn">Send to All Users</button>
+    </div>
+</div>
+
+<div class="section-card">
+    <h2 style="margin-bottom:1rem;">Send History</h2>
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th>Category</th>
+                    <th>Title</th>
+                    <th>Message</th>
+                    <th>Sent By</th>
+                    <th>Recipients</th>
+                    <th>Push Delivered</th>
+                    <th>Date</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for b in broadcasts %}
+                <tr>
+                    <td><span class="category-badge {{ b.category }}">{{ b.get_category_display }}</span></td>
+                    <td>{{ b.title }}</td>
+                    <td style="max-width:280px;">{{ b.body|truncatechars:80 }}</td>
+                    <td>{{ b.sent_by.username|default:"—" }}</td>
+                    <td>{{ b.recipient_count }}</td>
+                    <td>{{ b.push_sent_count }}</td>
+                    <td>{{ b.created_at|date:"M d, Y H:i" }}</td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="7" class="empty">No announcements sent yet.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+document.getElementById('bcTitle').addEventListener('input', function() {
+    document.getElementById('titleCount').textContent = '(' + this.value.length + '/60)';
+});
+document.getElementById('bcBody').addEventListener('input', function() {
+    document.getElementById('bodyCount').textContent = this.value.length;
+});
+
+function sendBroadcast() {
+    const category = document.getElementById('bcCategory').value;
+    const title = document.getElementById('bcTitle').value.trim();
+    const body = document.getElementById('bcBody').value.trim();
+
+    if (!title) { showToast('Title is required', true); return; }
+    if (!body) { showToast('Message is required', true); return; }
+    if (!confirm('Send this announcement to every active user now?')) return;
+
+    const btn = document.getElementById('sendBtn');
+    btn.disabled = true;
+    btn.textContent = 'Sending...';
+
+    const form = new FormData();
+    form.append('csrfmiddlewaretoken', getCSRF());
+    form.append('category', category);
+    form.append('title', title);
+    form.append('body', body);
+
+    fetch('{% url "dashboard_broadcast_send" %}', { method: 'POST', body: form, headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+        .then(r => r.json())
+        .then(d => {
+            btn.disabled = false;
+            btn.textContent = 'Send to All Users';
+            if (d.error) { showToast(d.error, true); return; }
+            showToast(d.message);
+            setTimeout(() => location.reload(), 900);
+        })
+        .catch(() => {
+            btn.disabled = false;
+            btn.textContent = 'Send to All Users';
+            showToast('Send failed', true);
+        });
+}
+</script>
+{% endblock %}
