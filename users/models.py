@@ -28,6 +28,10 @@ class User(AbstractUser):
     transaction_pin = models.CharField(max_length=128, blank=True, null=True)
     avatar = models.ImageField(upload_to="avatars/", blank=True, null=True)
     kyc_level = models.CharField(max_length=20, choices=KYC_LEVEL_CHOICES, default=KYC_NONE)
+    # Expo push token for this user's device — used to deliver notifications (e.g. wallet
+    # deposits) even when the app isn't open. Overwritten on every login/app start by the
+    # mobile client, so it always reflects the most recently active device.
+    push_token = models.CharField(max_length=255, blank=True, null=True)
 
     USERNAME_FIELD = 'username'
     REQUIRED_FIELDS = ['phone_number', 'email']

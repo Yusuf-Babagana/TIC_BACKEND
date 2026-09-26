@@ -52,13 +52,21 @@ def check_transaction_pin(user, pin):
 
 
 def send_otp_email(email, otp):
-    send_mail(
-        subject="Your TIC verification code",
-        message=f"Your OTP code is {otp}. It expires once used or a new one is requested.",
-        from_email=settings.DEFAULT_FROM_EMAIL,
-        recipient_list=[email],
-        fail_silently=False,
-    )
+    """
+    Best-effort, same pattern as send_customer_email: a provider outage (e.g. Brevo
+    rejecting the request) must not 500 registration/login after the user record and
+    OTP code are already saved — the user can always request a fresh OTP via resend.
+    """
+    try:
+        send_mail(
+            subject="Your TIC verification code",
+            message=f"Your OTP code is {otp}. It expires once used or a new one is requested.",
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=[email],
+            fail_silently=False,
+        )
+    except Exception:
+        logger.exception("Failed to send OTP email to %s", email)
 
 
 def reward_referrer_on_first_purchase(user):

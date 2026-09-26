@@ -168,4 +168,31 @@ class MonnifyService:
                 status="SUCCESSFUL",
                 reference=txn_ref or f"WEBHOOK-{wallet.user_id}-{timezone.now().strftime('%Y%m%d%H%M%S%f')}",
             )
+
+        # Outside the atomic block on purpose — these are best-effort side effects
+        # (in-app notification + push) that must never hold the wallet row lock
+        # open around a network call, and must never roll back a real credit.
+        cls._notify_deposit(locked.user, net_credit)
         return True
+
+    @classmethod
+    def _notify_deposit(cls, user, net_credit):
+        from core.push import send_push_notification
+        from fashion.models import Notification
+
+        message = f"Your wallet has been credited with ₦{net_credit:,.2f}."
+
+        try:
+            Notification.objects.create(user=user, message=message)
+        except Exception as e:
+            logger.error("Failed to create deposit notification for user_id=%s: %s", user.id, e)
+
+        try:
+            send_push_notification(
+                user.push_token,
+                title="Wallet Funded",
+                body=message,
+                data={"type": "wallet_deposit"},
+            )
+        except Exception as e:
+            logger.error("Failed to send deposit push notification for user_id=%s: %s", user.id, e)

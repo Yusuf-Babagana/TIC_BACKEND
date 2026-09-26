@@ -26,6 +26,7 @@ User = get_user_model()
 
 class RegisterView(generics.CreateAPIView):
     serializer_class = RegisterSerializer
+    authentication_classes = []
     permission_classes = [permissions.AllowAny]
 
     def post(self, request, *args, **kwargs):
@@ -84,6 +85,7 @@ class LoginView(TokenObtainPairView):
 
 
 class SendOTPView(APIView):
+    authentication_classes = []
     permission_classes = [permissions.AllowAny]
 
     def post(self, request):
@@ -179,6 +181,7 @@ class LogoutView(APIView):
 
 
 class ResetPasswordView(APIView):
+    authentication_classes = []
     permission_classes = [permissions.AllowAny]
 
     def post(self, request):
@@ -231,6 +234,7 @@ class MyReferralView(APIView):
 
 class SiteSettingsView(APIView):
     """Public, unauthenticated — the app fetches the current support contact from here."""
+    authentication_classes = []
     permission_classes = [permissions.AllowAny]
 
     def get(self, request):
@@ -263,6 +267,7 @@ class MyReferralStatsView(APIView):
 
 
 class VerifyOTPView(APIView):
+    authentication_classes = []
     permission_classes = [permissions.AllowAny]
 
     def post(self, request):

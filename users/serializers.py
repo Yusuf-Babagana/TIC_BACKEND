@@ -36,9 +36,10 @@ class UserSerializer(serializers.ModelSerializer):
         fields = [
             "id", "username", "email", "phone_number",
             "first_name", "last_name", "is_verified", "referral_code",
-            "avatar", "kyc_level", "has_transaction_pin",
+            "avatar", "kyc_level", "has_transaction_pin", "push_token",
         ]
         read_only_fields = ["id", "username", "email", "is_verified", "referral_code", "kyc_level"]
+        extra_kwargs = {"push_token": {"write_only": True}}
 
     def get_has_transaction_pin(self, obj):
         return bool(obj.transaction_pin)
