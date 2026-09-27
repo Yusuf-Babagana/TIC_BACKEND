@@ -4,9 +4,12 @@ import json
 import logging
 import re
 import traceback
+from datetime import timedelta
 from decimal import Decimal
 
 from django.conf import settings
+from django.shortcuts import get_object_or_404
+from django.utils import timezone
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_exempt
 from rest_framework import generics, status
@@ -193,6 +196,60 @@ class TransactionHistoryView(generics.ListAPIView):
         return Transaction.objects.filter(user=self.request.user).order_by(
             "-created_at"
         )
+
+
+class TransactionStatusView(APIView):
+    """
+    GET /wallet/transaction-status/<reference>/ — auth, scoped to request.user.
+
+    Self-healing status check for a single transaction: the mobile app polls this every
+    few seconds right after a VTU purchase while showing "Pending". In practice, Nellobytes'
+    webhook callback frequently never arrives at all (confirmed via the dashboard's Webhook
+    Log staying empty even for orders that visibly succeeded on the customer's phone/meter),
+    so relying on it alone leaves the UI stuck on Pending until someone manually runs the
+    reconciliation management command. This view closes that gap: if the transaction is
+    still PENDING past a short grace period, it live-queries Nellobytes' order-status
+    endpoint and resolves it inline — the same resolution path apply_order_outcome() already
+    uses for the webhook and the reconciliation sweep, so all three stay consistent.
+
+    A Nellobytes failure/timeout here is swallowed, not raised — the caller just gets back
+    whatever the current (still-PENDING) status is and tries again on its next poll a few
+    seconds later.
+    """
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    # Give the purchase submission a moment to settle before double-checking it — avoids
+    # querying Nellobytes on an order it hasn't even fully registered yet.
+    GRACE_SECONDS = 10
+    RECONCILABLE_TYPES = ("DATA", "AIRTIME", "UTILITY")
+
+    def get(self, request, reference):
+        txn = get_object_or_404(Transaction, user=request.user, reference=reference)
+
+        if (
+            txn.status == "PENDING"
+            and txn.order_id
+            and txn.trans_type in self.RECONCILABLE_TYPES
+            and timezone.now() - txn.created_at > timedelta(seconds=self.GRACE_SECONDS)
+        ):
+            from vtu.nellobytes import NellobytesError, NellobytesService
+
+            try:
+                body = NellobytesService.query_order(order_id=txn.order_id)
+                outcome = NellobytesService.resolve_order_outcome(
+                    body.get("orderstatus") or body.get("status"), body.get("statuscode")
+                )
+                if outcome in ("SUCCESSFUL", "FAILED"):
+                    NellobytesService.apply_order_outcome(txn.pk, outcome)
+                    txn.refresh_from_db()
+            except NellobytesError as e:
+                logger.warning(
+                    "TransactionStatusView: live query failed for order_id=%s: %s",
+                    txn.order_id, e,
+                )
+
+        return Response(TransactionSerializer(txn).data)
 
 
 class SubmitBVNView(APIView):
