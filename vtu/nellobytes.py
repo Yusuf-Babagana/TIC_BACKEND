@@ -75,22 +75,53 @@ class NellobytesService:
             )
             raise NellobytesError(f"Nellobytes returned invalid response (HTTP {resp.status_code})")
 
+    # Statuses Nellobytes has returned for a request that never actually
+    # reached order processing — either their own docs describe them as an
+    # undifferentiated internal fault (INVALID_API_ERROR1/2: "API error.",
+    # no further detail — see clubkonnect.com's dispute-resolution status
+    # table) or it's the exact status that was already confirmed transient
+    # for a valid UserID/APIKey combo (INVALID_CREDENTIALS — see
+    # WALLET_BALANCE_RETRY_DELAYS above, 2026-08-30). Safe to retry: none of
+    # these mean the order was received, so a retry can't double-submit it.
+    # Deterministic rejections (bad recipient/amount/network, insufficient
+    # balance, real credential/access problems) are NOT in this set — retrying
+    # those would only delay a failure the same params will always produce.
+    RETRYABLE_ORDER_STATUSES = {"INVALID_API_ERROR1", "INVALID_API_ERROR2", "INVALID_CREDENTIALS"}
+    ORDER_RETRY_DELAYS = (1.5, 3)
+
     @classmethod
     def _submit_order(cls, endpoint, params):
-        body = cls._get_json(endpoint, params)
-        order_status = body.get("status")
-        if order_status != "ORDER_RECEIVED":
-            logger.error("Nellobytes order rejected: endpoint=%s body=%s", endpoint, body)
-            raise NellobytesError(order_status or "Nellobytes request failed")
+        import time
 
-        # Preserve any extra fields the provider includes on the initial
-        # response (e.g. electricity's meterno/metertoken) alongside the
-        # normalized order_id/status_code/status keys every caller relies on.
-        result = dict(body)
-        result["order_id"] = body.get("orderid")
-        result["status_code"] = body.get("statuscode")
-        result["status"] = order_status
-        return result
+        attempts = 1 + len(cls.ORDER_RETRY_DELAYS)
+        for attempt in range(attempts):
+            if attempt > 0:
+                time.sleep(cls.ORDER_RETRY_DELAYS[attempt - 1])
+
+            body = cls._get_json(endpoint, params)
+            order_status = body.get("status")
+
+            if order_status == "ORDER_RECEIVED":
+                # Preserve any extra fields the provider includes on the initial
+                # response (e.g. electricity's meterno/metertoken) alongside the
+                # normalized order_id/status_code/status keys every caller relies on.
+                result = dict(body)
+                result["order_id"] = body.get("orderid")
+                result["status_code"] = body.get("statuscode")
+                result["status"] = order_status
+                return result
+
+            if order_status not in cls.RETRYABLE_ORDER_STATUSES:
+                logger.error("Nellobytes order rejected: endpoint=%s body=%s", endpoint, body)
+                raise NellobytesError(order_status or "Nellobytes request failed")
+
+            logger.warning(
+                "Nellobytes order status %s (attempt %s/%s), retrying: endpoint=%s",
+                order_status, attempt + 1, attempts, endpoint,
+            )
+
+        logger.error("Nellobytes order rejected after %s attempts: endpoint=%s body=%s", attempts, endpoint, body)
+        raise NellobytesError(order_status or "Nellobytes request failed")
 
     @classmethod
     def buy_data(cls, network, plan_id, mobile_number, request_id, callback_url):
