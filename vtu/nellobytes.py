@@ -87,18 +87,31 @@ class NellobytesService:
     # balance, real credential/access problems) are NOT in this set — retrying
     # those would only delay a failure the same params will always produce.
     RETRYABLE_ORDER_STATUSES = {"INVALID_API_ERROR1", "INVALID_API_ERROR2", "INVALID_CREDENTIALS"}
-    ORDER_RETRY_DELAYS = (1.5, 3)
+    # Only ONE retry, with a short timeout — not the wallet-balance check's
+    # 3-attempt/30s-timeout budget. That combination (up to 3x cls.TIMEOUT
+    # plus sleep) was observed in practice to push total request time past
+    # the mobile client's 30s axios timeout and PythonAnywhere's own proxy
+    # timeout when the underlying failure wasn't actually transient (e.g. a
+    # genuinely broken API key) — the connection gets killed mid-retry and
+    # the client sees a raw "Network Error" instead of a clean failure
+    # response. The first attempt keeps the full cls.TIMEOUT in case it's a
+    # legitimately slow (not broken) order; the retry doesn't need that much
+    # since a fast rejection just came back on attempt 1.
+    ORDER_RETRY_DELAY = 2
+    ORDER_RETRY_TIMEOUT = 10
 
     @classmethod
     def _submit_order(cls, endpoint, params):
         import time
 
-        attempts = 1 + len(cls.ORDER_RETRY_DELAYS)
+        attempts = 2
         for attempt in range(attempts):
-            if attempt > 0:
-                time.sleep(cls.ORDER_RETRY_DELAYS[attempt - 1])
+            if attempt == 0:
+                body = cls._get_json(endpoint, params)
+            else:
+                time.sleep(cls.ORDER_RETRY_DELAY)
+                body = cls._get_json(endpoint, params, timeout=cls.ORDER_RETRY_TIMEOUT)
 
-            body = cls._get_json(endpoint, params)
             order_status = body.get("status")
 
             if order_status == "ORDER_RECEIVED":
