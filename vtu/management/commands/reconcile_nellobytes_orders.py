@@ -10,9 +10,15 @@ from wallet.models import Transaction
 class Command(BaseCommand):
     help = (
         "Safety net for missed/delayed Nellobytes callbacks: polls Nellobytes' "
-        "query endpoint for DATA transactions still PENDING after a few minutes "
-        "and resolves them the same way the webhook does."
+        "query endpoint for Data/Airtime/Utility (Cable TV & Electricity) transactions "
+        "still PENDING after a few minutes and resolves them the same way the webhook does."
     )
+
+    # Every trans_type Nellobytes actually fulfills. UTILITY covers both Cable TV and
+    # Electricity — the Transaction model doesn't distinguish them beyond that. DEPOSIT and
+    # EXAMPIN are excluded: neither is a Nellobytes order (deposits are Monnify-side, and
+    # exam pins aren't wired to any provider yet).
+    RECONCILABLE_TYPES = ("DATA", "AIRTIME", "UTILITY")
 
     def add_arguments(self, parser):
         parser.add_argument(
@@ -25,7 +31,7 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         cutoff = timezone.now() - timedelta(minutes=options["older_than_minutes"])
         pending = Transaction.objects.filter(
-            trans_type="DATA",
+            trans_type__in=self.RECONCILABLE_TYPES,
             status="PENDING",
             order_id__isnull=False,
             created_at__lt=cutoff,
