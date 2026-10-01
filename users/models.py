@@ -68,6 +68,11 @@ class SiteSettings(models.Model):
     """
     whatsapp_number = models.CharField(max_length=20, blank=True, default="")
 
+    # Message shown on the app's post-login welcome screen. Blank = the app
+    # falls back to its built-in default text.
+    login_notice_title = models.CharField(max_length=100, blank=True, default="")
+    login_notice_message = models.TextField(blank=True, default="")
+
     # Last successful Nellobytes reseller-balance check, so the Finance
     # Center can show a "last known" figure (with its timestamp) instead of
     # a bare "Unavailable" whenever the live check is currently failing —

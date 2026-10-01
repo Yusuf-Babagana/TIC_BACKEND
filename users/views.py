@@ -241,7 +241,11 @@ class SiteSettingsView(APIView):
         from .models import SiteSettings
 
         settings_obj = SiteSettings.get_solo()
-        return Response({"whatsapp_number": settings_obj.whatsapp_number})
+        return Response({
+            "whatsapp_number": settings_obj.whatsapp_number,
+            "login_notice_title": settings_obj.login_notice_title,
+            "login_notice_message": settings_obj.login_notice_message,
+        })
 
 
 class FeatureFlagsView(APIView):

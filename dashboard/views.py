@@ -939,8 +939,19 @@ class DashboardSettingsUpdateView(LoginRequiredMixin, View):
     login_url = "/dashboard/login/"
 
     def post(self, request):
-        whatsapp_number = request.POST.get("whatsapp_number", "").strip()
         settings_obj = SiteSettings.get_solo()
+
+        if "login_notice_message" in request.POST:
+            title = request.POST.get("login_notice_title", "").strip()
+            message = request.POST.get("login_notice_message", "").strip()
+            if len(title) > 100:
+                return JsonResponse({"error": "Title must be 100 characters or fewer"}, status=400)
+            settings_obj.login_notice_title = title
+            settings_obj.login_notice_message = message
+            settings_obj.save(update_fields=["login_notice_title", "login_notice_message"])
+            return JsonResponse({"message": "Login notice updated"})
+
+        whatsapp_number = request.POST.get("whatsapp_number", "").strip()
         settings_obj.whatsapp_number = whatsapp_number
         settings_obj.save(update_fields=["whatsapp_number"])
         return JsonResponse({
