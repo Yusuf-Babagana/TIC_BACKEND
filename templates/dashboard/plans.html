@@ -26,27 +26,63 @@
 
 {% csrf_token %}
 
+<div class="filter-bar">
+    <a href="{% url 'dashboard_plans' %}" {% if kind == 'data' %}class="active"{% endif %}>Data</a>
+    <a href="{% url 'dashboard_plans' %}?type=cable" {% if kind == 'cable' %}class="active"{% endif %}>Cable TV</a>
+</div>
+
 <div class="sync-bar">
-    <span class="label">⚡ Live Prices</span>
-    <select id="marginSelect">
-        <option value="5">5% margin</option>
-        <option value="10" selected>10% margin</option>
-        <option value="15">15% margin</option>
-        <option value="20">20% margin</option>
-        <option value="0">Cost price (0%)</option>
+    <span class="label">Bulk price</span>
+    <select id="bulkProvider">
+        <option value="">All {{ kind }} plans</option>
+        {% for p in providers %}<option value="{{ p }}" {% if active_provider == p %}selected{% endif %}>{{ p }}</option>{% endfor %}
     </select>
-    <button class="btn btn-success" onclick="syncPrices()">Sync Live Prices</button>
+    <span class="label">cost +</span>
+    <input type="number" step="0.1" id="bulkPercent" value="10" class="price-input" style="width:70px"> <span class="label">%</span>
+    <button class="btn btn-success" onclick="bulkPrice()">Apply</button>
+    <span class="label" style="font-weight:400">Sets selling price = API cost + margin (negative allowed). Edit single rows below for exact prices.</span>
+    <span class="label" style="margin-left:auto">Refresh cost prices from catalog:</span>
+    <button class="btn" onclick="syncPrices()">Refresh costs</button>
     <div class="spinner" id="syncSpinner"></div>
     <span id="syncStatus" style="font-size:0.85rem;color:var(--text-secondary);"></span>
 </div>
 
 <div class="filter-bar">
-    <a href="{% url 'dashboard_plans' %}" {% if not active_provider %}class="active"{% endif %}>All</a>
+    <a href="?type={{ kind }}" {% if not active_provider %}class="active"{% endif %}>All</a>
     {% for p in providers %}
-    <a href="{% url 'dashboard_plans' %}?provider={{ p.slug }}" {% if active_provider == p.slug %}class="active"{% endif %}>{{ p.name }}</a>
+    <a href="?type={{ kind }}&provider={{ p }}" {% if active_provider == p %}class="active"{% endif %}>{{ p }}</a>
     {% endfor %}
 </div>
 
+<h3 style="margin:1.5rem 0 0.5rem">Airtime &amp; Electricity pricing</h3>
+<p style="font-size:0.85rem;color:var(--text-secondary);margin-bottom:0.75rem">
+    Customer pays = amount + amount &times; % + flat fee. Use a negative % for a discount
+    (e.g. -2 on MTN airtime: customer pays &#8358;98 for &#8358;100). Provider <code>*</code> applies to every provider without its own rule.
+</p>
+<div class="table-wrap">
+<table>
+    <thead><tr><th>Service</th><th>Provider</th><th>% adjust</th><th>Flat fee (₦)</th><th>Active</th><th></th></tr></thead>
+    <tbody>
+        {% for r in pricing_rules %}
+        <tr>
+            <td>{{ r.category }}</td><td>{{ r.provider }}</td><td>{{ r.percent_adjust }}</td><td>{{ r.flat_fee }}</td>
+            <td>{{ r.is_active|yesno:"Yes,No" }}</td>
+            <td><button class="btn" onclick="deleteRule({{ r.id }})">Delete</button></td>
+        </tr>
+        {% empty %}<tr><td colspan="6" class="empty">No rules - customers pay the face amount.</td></tr>{% endfor %}
+        <tr>
+            <td><select id="ruleCat"><option>AIRTIME</option><option>ELECTRICITY</option></select></td>
+            <td><input id="ruleProv" class="price-input" style="width:90px;text-align:left" value="*" placeholder="MTN"></td>
+            <td><input id="rulePct" type="number" step="0.01" class="price-input" value="0"></td>
+            <td><input id="ruleFee" type="number" step="0.01" min="0" class="price-input" value="0"></td>
+            <td></td>
+            <td><button class="btn btn-success" onclick="saveRule()">Save rule</button></td>
+        </tr>
+    </tbody>
+</table>
+</div>
+
+<h3 style="margin:1.5rem 0 0.5rem">{% if kind == 'cable' %}Cable TV{% else %}Data{% endif %} plans</h3>
 <div class="table-wrap">
 <table>
     <thead>
@@ -55,6 +91,7 @@
             <th>Name</th>
             <th>Selling Price (₦)</th>
             <th>API Cost (₦)</th>
+            <th>Margin (₦)</th>
             <th>Active</th>
             <th>Bundle ID</th>
         </tr>
@@ -62,7 +99,7 @@
     <tbody>
         {% for plan in plans %}
         <tr>
-            <td>{{ plan.provider.name }}</td>
+            <td>{% if kind == 'cable' %}{{ plan.provider_name }}{% else %}{{ plan.network }}{% endif %}</td>
             <td>{{ plan.plan_name }}</td>
             <td>
                 <input type="number" step="0.01" min="0" class="price-input"
@@ -72,6 +109,7 @@
                 <span class="price-saved" id="saved-{{ plan.id }}">✓</span>
             </td>
             <td>{{ plan.api_price|floatformat:2 }}</td>
+            <td id="margin-{{ plan.id }}">{% if plan.api_price %}{{ plan.margin|floatformat:2 }}{% else %}-{% endif %}</td>
             <td>
                 <label class="toggle">
                     <input type="checkbox" {% if plan.is_active %}checked{% endif %}
@@ -83,7 +121,7 @@
             <td>{{ plan.plan_id }}</td>
         </tr>
         {% empty %}
-        <tr><td colspan="6" class="empty">No plans found.</td></tr>
+        <tr><td colspan="7" class="empty">No plans found.</td></tr>
         {% endfor %}
     </tbody>
 </table>
@@ -94,7 +132,7 @@ function syncPrices() {
     const btn = event.target;
     const spinner = document.getElementById('syncSpinner');
     const status = document.getElementById('syncStatus');
-    const margin = document.getElementById('marginSelect').value;
+    const margin = '0';
     btn.disabled = true;
     spinner.style.display = 'inline-block';
     status.textContent = 'Syncing...';
@@ -111,10 +149,38 @@ function syncPrices() {
     }).catch(() => { spinner.style.display = 'none'; btn.disabled = false; status.textContent = ''; showToast('Sync failed', true); });
 }
 
+function post(url, fields) {
+    const form = new FormData();
+    form.append('csrfmiddlewaretoken', getCSRF());
+    Object.entries(fields).forEach(([k, v]) => form.append(k, v));
+    return fetch(url, { method: 'POST', body: form, headers: { 'X-Requested-With': 'XMLHttpRequest' } }).then(r => r.json());
+}
+function bulkPrice() {
+    const provider = document.getElementById('bulkProvider').value;
+    const pct = document.getElementById('bulkPercent').value;
+    if (!confirm('Re-price ' + (provider || 'ALL') + ' plans to cost + ' + pct + '%? This overwrites current selling prices.')) return;
+    post('{% url "dashboard_plans_bulk_price" %}?type={{ kind }}', { provider: provider, percent: pct })
+    .then(d => { if (d.error) { showToast(d.error, true); return; } showToast(d.message); setTimeout(() => location.reload(), 800); })
+    .catch(() => showToast('Bulk update failed', true));
+}
+function saveRule() {
+    post('{% url "dashboard_pricing_rule" %}', {
+        category: document.getElementById('ruleCat').value,
+        provider: document.getElementById('ruleProv').value,
+        percent_adjust: document.getElementById('rulePct').value,
+        flat_fee: document.getElementById('ruleFee').value,
+    }).then(d => { if (d.error) { showToast(d.error, true); return; } showToast(d.message); setTimeout(() => location.reload(), 600); })
+    .catch(() => showToast('Save failed', true));
+}
+function deleteRule(id) {
+    post('/dashboard/pricing-rules/' + id + '/delete/', {})
+    .then(d => { showToast(d.message || d.error, !!d.error); setTimeout(() => location.reload(), 600); });
+}
+
 function togglePlan(el) {
     const form = new FormData();
     form.append('csrfmiddlewaretoken', getCSRF());
-    fetch('/dashboard/plans/' + el.dataset.planId + '/toggle/', { method: 'POST', body: form, headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+    fetch('/dashboard/plans/' + el.dataset.planId + '/toggle/?type={{ kind }}', { method: 'POST', body: form, headers: { 'X-Requested-With': 'XMLHttpRequest' } })
     .then(r => r.json()).then(d => { if (d.error) { showToast(d.error, true); el.checked = !el.checked; return; } showToast(d.message); })
     .catch(() => { showToast('Toggle failed', true); el.checked = !el.checked; });
 }
@@ -127,11 +193,12 @@ function updatePrice(el) {
         const form = new FormData();
         form.append('csrfmiddlewaretoken', getCSRF());
         form.append('selling_price', el.value);
-        fetch('/dashboard/plans/' + planId + '/price/', { method: 'POST', body: form, headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+        fetch('/dashboard/plans/' + planId + '/price/?type={{ kind }}', { method: 'POST', body: form, headers: { 'X-Requested-With': 'XMLHttpRequest' } })
         .then(r => r.json()).then(d => {
             const saved = document.getElementById('saved-' + planId);
             if (d.error) { showToast(d.error, true); return; }
             saved.classList.add('show');
+            const m = document.getElementById('margin-' + planId); if (m && d.margin !== undefined) m.textContent = parseFloat(d.margin).toFixed(2);
             setTimeout(() => saved.classList.remove('show'), 2000);
         }).catch(() => showToast('Price update failed', true));
     }, 600);

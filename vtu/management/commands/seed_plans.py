@@ -7,9 +7,21 @@ from vtu.models import CablePlan, DataPlan, Provider
 
 
 class Command(BaseCommand):
-    help = "Seed DataPlan and CablePlan tables from static constants"
+    help = (
+        "Seed DataPlan and CablePlan tables from static constants. Existing plans keep "
+        "their admin-set selling_price (only api_price/name are refreshed) unless "
+        "--reset-prices is passed."
+    )
+
+    def add_arguments(self, parser):
+        parser.add_argument(
+            "--reset-prices",
+            action="store_true",
+            help="Overwrite selling_price of existing plans with the constants price.",
+        )
 
     def handle(self, *args, **options):
+        reset = options["reset_prices"]
         providers_map = {}
         all_providers = [
             ("MTN", 1), ("AIRTEL", 2), ("GLO", 3), ("9MOBILE", 4),
@@ -32,15 +44,20 @@ class Command(BaseCommand):
         for entry in DATA_PLANS:
             network = entry["provider"].upper()
             provider = providers_map.get(network)
+            cost = Decimal(str(entry["price"]))
+            defaults = {
+                "provider": provider,
+                "plan_name": entry["name"],
+                "api_price": cost,
+                "is_active": True,
+            }
+            if reset:
+                defaults["selling_price"] = cost
             obj, was = DataPlan.objects.update_or_create(
                 network=network,
                 plan_id=str(entry["id"]),
-                defaults={
-                    "provider": provider,
-                    "plan_name": entry["name"],
-                    "selling_price": Decimal(str(entry["price"])),
-                    "is_active": True,
-                },
+                defaults=defaults,
+                create_defaults={**defaults, "selling_price": cost},
             )
             if was:
                 created += 1
@@ -55,15 +72,20 @@ class Command(BaseCommand):
         for entry in CABLE_PLANS:
             pname = entry["provider"].upper()
             provider = providers_map.get(pname)
+            cost = Decimal(str(entry["price"]))
+            defaults = {
+                "provider": provider,
+                "plan_name": entry["name"],
+                "api_price": cost,
+                "is_active": True,
+            }
+            if reset:
+                defaults["selling_price"] = cost
             obj, was = CablePlan.objects.update_or_create(
                 provider_name=pname,
                 plan_id=str(entry["id"]),
-                defaults={
-                    "provider": provider,
-                    "plan_name": entry["name"],
-                    "selling_price": Decimal(str(entry["price"])),
-                    "is_active": True,
-                },
+                defaults=defaults,
+                create_defaults={**defaults, "selling_price": cost},
             )
             if was:
                 created += 1

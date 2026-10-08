@@ -14,7 +14,8 @@ from rest_framework.views import APIView
 from rest_framework_simplejwt.authentication import JWTAuthentication
 
 from .constants import get_data_plan, get_cable_plan
-from .models import CablePlan, DataPlan
+from .models import CablePlan, DataPlan, ServicePricing
+from .pricing import customer_price
 from .nellobytes import NellobytesService, NellobytesError
 from .providers import disco_name_from_id, network_name_from_provider_id
 from .serializers import UnifiedPurchaseSerializer
@@ -60,6 +61,24 @@ class DataPlanListView(APIView):
                 for p in qs
             ]
             return Response(plans, status=200)
+
+        if category in ("AIRTIME", "ELECTRICITY"):
+            # No fixed plans — expose the admin's pricing rules so the app can
+            # show "you pay X" before purchase.
+            qs = ServicePricing.objects.filter(category=category, is_active=True)
+            if provider:
+                qs = qs.filter(provider__in=[provider.upper(), "*"])
+            return Response(
+                [
+                    {
+                        "provider": r.provider,
+                        "percent_adjust": float(r.percent_adjust),
+                        "flat_fee": float(r.flat_fee),
+                    }
+                    for r in qs
+                ],
+                status=200,
+            )
 
         return Response([], status=400)
 
@@ -258,8 +277,9 @@ def _execute_nellobytes_data_purchase(user, network, plan_id, mobile_number, cos
 
 
 def _execute_nellobytes_airtime_purchase(user, network, amount, mobile_number):
+    # Provider gets the face amount; the wallet is debited the admin-priced cost.
     return _execute_nellobytes_purchase(
-        user, "AIRTIME", amount,
+        user, "AIRTIME", customer_price("AIRTIME", network, amount),
         lambda request_id, callback_url: NellobytesService.buy_airtime(
             network=network, amount=int(amount), mobile_number=mobile_number,
             request_id=request_id, callback_url=callback_url,
@@ -279,7 +299,7 @@ def _execute_nellobytes_cable_purchase(user, cable_tv, package, smartcard_no, ph
 
 def _execute_nellobytes_electricity_purchase(user, company, meter_type, meter_no, amount, phone_no):
     return _execute_nellobytes_purchase(
-        user, "UTILITY", amount,
+        user, "UTILITY", customer_price("ELECTRICITY", company, amount),
         lambda request_id, callback_url: NellobytesService.buy_electricity(
             company=company, meter_type=meter_type, meter_no=meter_no, amount=int(amount),
             phone_no=phone_no, request_id=request_id, callback_url=callback_url,

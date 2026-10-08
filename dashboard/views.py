@@ -1,7 +1,7 @@
 import io
 import sys
 from datetime import date, datetime, timedelta
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.mixins import LoginRequiredMixin
@@ -26,7 +26,7 @@ from fashion.models import (
 )
 from marketing.models import Flyer as FlyerModel, MarketingGallery as MarketingGalleryModel, Order as OrderModel
 from users.models import FeatureFlag, Referral, ReferralConfig, SiteSettings
-from vtu.models import DataPlan, Provider
+from vtu.models import CablePlan, DataPlan, Provider, ServicePricing
 from vtu.nellobytes import NellobytesError, NellobytesService
 from wallet.models import Transaction, Wallet
 
@@ -111,19 +111,33 @@ class DashboardPlanListView(LoginRequiredMixin, ListView):
     login_url = "/dashboard/login/"
     context_object_name = "plans"
 
+    def _kind(self):
+        return "cable" if self.request.GET.get("type") == "cable" else "data"
+
     def get_queryset(self):
         provider = self.request.GET.get("provider")
-        qs = DataPlan.objects.select_related("provider").order_by(
-            "provider__name", "plan_name"
-        )
-        if provider:
-            qs = qs.filter(provider__slug=provider)
+        if self._kind() == "cable":
+            qs = CablePlan.objects.order_by("provider_name", "selling_price")
+            if provider:
+                qs = qs.filter(provider_name=provider.upper())
+        else:
+            qs = DataPlan.objects.order_by("network", "selling_price")
+            if provider:
+                qs = qs.filter(network=provider.upper())
         return qs
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context["providers"] = Provider.objects.all()
-        context["active_provider"] = self.request.GET.get("provider", "")
+        kind = self._kind()
+        names = (
+            ["DSTV", "GOTV", "STARTIMES"]
+            if kind == "cable"
+            else [n for n, _ in DataPlan.NETWORK_CHOICES]
+        )
+        context["providers"] = names
+        context["kind"] = kind
+        context["active_provider"] = (self.request.GET.get("provider") or "").upper()
+        context["pricing_rules"] = ServicePricing.objects.all()
         return context
 
 
@@ -372,11 +386,15 @@ class DashboardFabricColorDeleteView(LoginRequiredMixin, View):
         return JsonResponse({"message": "Fabric color deleted"})
 
 
+def _plan_model(request):
+    return CablePlan if request.GET.get("type") == "cable" else DataPlan
+
+
 class DashboardPlanToggleView(LoginRequiredMixin, View):
     login_url = "/dashboard/login/"
 
     def post(self, request, pk):
-        plan = get_object_or_404(DataPlan, pk=pk)
+        plan = get_object_or_404(_plan_model(request), pk=pk)
         plan.is_active = not plan.is_active
         plan.save(update_fields=["is_active"])
         return JsonResponse({"is_active": plan.is_active, "message": "Plan updated"})
@@ -386,20 +404,87 @@ class DashboardPlanPriceUpdateView(LoginRequiredMixin, View):
     login_url = "/dashboard/login/"
 
     def post(self, request, pk):
-        plan = get_object_or_404(DataPlan, pk=pk)
-        price = request.POST.get("selling_price")
-        if price is None:
-            return JsonResponse({"error": "selling_price required"}, status=400)
+        plan = get_object_or_404(_plan_model(request), pk=pk)
         try:
-            plan.selling_price = price
-            plan.save(update_fields=["selling_price"])
-            return JsonResponse({
-                "selling_price": str(plan.selling_price),
-                "margin": str(plan.selling_price - (plan.api_price or 0)),
-                "message": "Price updated",
-            })
-        except (ValueError, TypeError) as e:
-            return JsonResponse({"error": str(e)}, status=400)
+            price = Decimal(str(request.POST.get("selling_price", "")).strip())
+        except InvalidOperation:
+            return JsonResponse({"error": "selling_price must be a number"}, status=400)
+        if not price.is_finite() or price <= 0 or price >= Decimal("100000000"):
+            return JsonResponse({"error": "selling_price must be greater than 0"}, status=400)
+        plan.selling_price = price.quantize(Decimal("0.01"))
+        plan.save(update_fields=["selling_price"])
+        return JsonResponse({
+            "selling_price": str(plan.selling_price),
+            "margin": str(plan.selling_price - (plan.api_price or 0)),
+            "message": "Price updated",
+        })
+
+
+class DashboardPlanBulkPriceView(LoginRequiredMixin, View):
+    """
+    Re-price many plans at once: selling_price = api_price * (1 + percent/100)
+    for a network/cable provider (or everything of that kind when provider is
+    blank). percent may be negative. Plans with no known api_price are skipped.
+    """
+    login_url = "/dashboard/login/"
+
+    def post(self, request):
+        model = _plan_model(request)
+        try:
+            percent = Decimal(str(request.POST.get("percent", "")).strip())
+        except InvalidOperation:
+            return JsonResponse({"error": "percent must be a number"}, status=400)
+        if not percent.is_finite() or percent <= Decimal("-100") or percent > Decimal("1000"):
+            return JsonResponse({"error": "percent must be between -100 and 1000"}, status=400)
+
+        provider = (request.POST.get("provider") or "").strip().upper()
+        qs = model.objects.filter(api_price__isnull=False, api_price__gt=0)
+        if provider:
+            qs = qs.filter(**({"provider_name": provider} if model is CablePlan else {"network": provider}))
+
+        factor = Decimal("1") + percent / Decimal("100")
+        plans = list(qs)
+        for plan in plans:
+            plan.selling_price = max((plan.api_price * factor).quantize(Decimal("0.01")), Decimal("0.01"))
+        model.objects.bulk_update(plans, ["selling_price"])
+        return JsonResponse({"message": f"{len(plans)} plans updated", "updated": len(plans)})
+
+
+class DashboardPricingRuleView(LoginRequiredMixin, View):
+    """Create/update the airtime or electricity pricing rule for one provider."""
+    login_url = "/dashboard/login/"
+
+    def post(self, request):
+        category = (request.POST.get("category") or "").upper()
+        if category not in ("AIRTIME", "ELECTRICITY"):
+            return JsonResponse({"error": "category must be AIRTIME or ELECTRICITY"}, status=400)
+        provider = (request.POST.get("provider") or "*").strip().upper() or "*"
+        try:
+            percent = Decimal(str(request.POST.get("percent_adjust", "0")).strip() or "0")
+            fee = Decimal(str(request.POST.get("flat_fee", "0")).strip() or "0")
+        except InvalidOperation:
+            return JsonResponse({"error": "percent_adjust and flat_fee must be numbers"}, status=400)
+        if not (percent.is_finite() and fee.is_finite()) or not (Decimal("-50") <= percent <= Decimal("100")) or fee < 0 or fee > 10000:
+            return JsonResponse(
+                {"error": "percent_adjust must be -50..100 and flat_fee 0..10000"}, status=400
+            )
+        rule, _ = ServicePricing.objects.update_or_create(
+            category=category, provider=provider,
+            defaults={
+                "percent_adjust": percent.quantize(Decimal("0.01")),
+                "flat_fee": fee.quantize(Decimal("0.01")),
+                "is_active": request.POST.get("is_active", "true").lower() != "false",
+            },
+        )
+        return JsonResponse({"message": "Pricing rule saved", "id": rule.pk})
+
+
+class DashboardPricingRuleDeleteView(LoginRequiredMixin, View):
+    login_url = "/dashboard/login/"
+
+    def post(self, request, pk):
+        get_object_or_404(ServicePricing, pk=pk).delete()
+        return JsonResponse({"message": "Pricing rule deleted"})
 
 
 class DashboardPlanSyncView(LoginRequiredMixin, View):
