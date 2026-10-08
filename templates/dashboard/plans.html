@@ -40,7 +40,7 @@
     <span class="label">cost +</span>
     <input type="number" step="0.1" id="bulkPercent" value="10" class="price-input" style="width:70px"> <span class="label">%</span>
     <button class="btn btn-success" onclick="bulkPrice()">Apply</button>
-    <span class="label" style="font-weight:400">Sets selling price = API cost + margin (negative allowed). Edit single rows below for exact prices.</span>
+    <span class="label" style="font-weight:400">Applies once: sets selling price = API cost + this %, then the box just remembers your last value. The Margin column shows each plan's real margin.</span>
     <span class="label" style="margin-left:auto">Refresh cost prices from catalog:</span>
     <button class="btn" onclick="syncPrices()">Refresh costs</button>
     <div class="spinner" id="syncSpinner"></div>
@@ -155,9 +155,17 @@ function post(url, fields) {
     Object.entries(fields).forEach(([k, v]) => form.append(k, v));
     return fetch(url, { method: 'POST', body: form, headers: { 'X-Requested-With': 'XMLHttpRequest' } }).then(r => r.json());
 }
+// The % box is a one-shot action (it re-prices plans, it isn't a stored setting),
+// so remember the last value used instead of snapping back to 10 on reload.
+try {
+    const saved = localStorage.getItem('bulkPercent');
+    if (saved !== null) document.getElementById('bulkPercent').value = saved;
+} catch (e) {}
+
 function bulkPrice() {
     const provider = document.getElementById('bulkProvider').value;
     const pct = document.getElementById('bulkPercent').value;
+    try { localStorage.setItem('bulkPercent', pct); } catch (e) {}
     if (!confirm('Re-price ' + (provider || 'ALL') + ' plans to cost + ' + pct + '%? This overwrites current selling prices.')) return;
     post('{% url "dashboard_plans_bulk_price" %}?type={{ kind }}', { provider: provider, percent: pct })
     .then(d => { if (d.error) { showToast(d.error, true); return; } showToast(d.message); setTimeout(() => location.reload(), 800); })
