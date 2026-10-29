@@ -229,25 +229,15 @@ class TransactionStatusView(APIView):
 
         if (
             txn.status == "PENDING"
-            and txn.order_id
             and txn.trans_type in self.RECONCILABLE_TYPES
             and timezone.now() - txn.created_at > timedelta(seconds=self.GRACE_SECONDS)
         ):
-            from vtu.nellobytes import NellobytesError, NellobytesService
+            from vtu.gateway import engine
 
-            try:
-                body = NellobytesService.query_order(order_id=txn.order_id)
-                outcome = NellobytesService.resolve_order_outcome(
-                    body.get("orderstatus") or body.get("status"), body.get("statuscode")
-                )
-                if outcome in ("SUCCESSFUL", "FAILED"):
-                    NellobytesService.apply_order_outcome(txn.pk, outcome)
-                    txn.refresh_from_db()
-            except NellobytesError as e:
-                logger.warning(
-                    "TransactionStatusView: live query failed for order_id=%s: %s",
-                    txn.order_id, e,
-                )
+            # Asks whichever provider holds the order; a provider failure just leaves it
+            # PENDING until the next poll. Never refunds on anything but a confirmed failure.
+            engine.reconcile_transaction(txn, "status-poll")
+            txn.refresh_from_db()
 
         return Response(TransactionSerializer(txn).data)
 

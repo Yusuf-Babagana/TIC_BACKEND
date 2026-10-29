@@ -1,13 +1,27 @@
 from django.db import migrations, models
 
 
+class CreateModelIfMissing(migrations.CreateModel):
+    """CreateModel that skips the DDL when the table already exists."""
+
+    def database_forwards(self, app_label, schema_editor, from_state, to_state):
+        model = to_state.apps.get_model(app_label, self.name)
+        existing = schema_editor.connection.introspection.table_names()
+        if model._meta.db_table in existing:
+            return
+        super().database_forwards(app_label, schema_editor, from_state, to_state)
+
+
 class Migration(migrations.Migration):
     """
     0001_initial already *describes* AdminNotification in Django's migration state
     (it was edited in place after being applied), but the real table was never
-    created since Django won't re-run an already-applied migration. This uses
+    created on databases that had already applied it. This uses
     SeparateDatabaseAndState so only the actual DB table gets created, without
     re-registering the model in migration state (which 0001_initial already did).
+
+    The create is skipped when the table exists, so a fresh database (where
+    0001_initial already built the table) migrates cleanly too.
     """
 
     dependencies = [
@@ -17,7 +31,7 @@ class Migration(migrations.Migration):
     operations = [
         migrations.SeparateDatabaseAndState(
             database_operations=[
-                migrations.CreateModel(
+                CreateModelIfMissing(
                     name="AdminNotification",
                     fields=[
                         ("id", models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name="ID")),

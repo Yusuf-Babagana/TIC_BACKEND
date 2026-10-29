@@ -1,10 +1,7 @@
 import logging
-import uuid
+import re
 from decimal import Decimal
 
-from django.conf import settings
-from django.db import transaction
-from django.urls import reverse
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_exempt
 from rest_framework import status
@@ -16,7 +13,9 @@ from rest_framework_simplejwt.authentication import JWTAuthentication
 from .constants import get_data_plan, get_cable_plan
 from .models import CablePlan, DataPlan, ServicePricing
 from .pricing import customer_price
-from .nellobytes import NellobytesService, NellobytesError
+from .gateway import registry, router
+from .gateway.base import CustomerVerificationError
+from .gateway.types import PurchaseRequest, Service
 from .providers import disco_name_from_id, network_name_from_provider_id
 from .serializers import UnifiedPurchaseSerializer
 
@@ -114,7 +113,10 @@ class UnifiedPurchaseView(APIView):
                     {"status": "false", "message": f"Unknown DATA plan_id: {plan_id} for network {provider_name}"},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
-            return _execute_nellobytes_data_purchase(user, provider_name, plan_id, target_id, plan["price"])
+            return _execute_nellobytes_data_purchase(
+                user, provider_name, plan_id, target_id, plan["price"],
+                idempotency_key=_idempotency_key(request),
+            )
 
         if category == "AIRTIME":
             if amount < 100:
@@ -127,7 +129,9 @@ class UnifiedPurchaseView(APIView):
                     {"status": "false", "message": "Maximum airtime amount is ₦200,000"},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
-            return _execute_nellobytes_airtime_purchase(user, provider_name, amount, target_id)
+            return _execute_nellobytes_airtime_purchase(
+                user, provider_name, amount, target_id, idempotency_key=_idempotency_key(request)
+            )
 
         if category == "CABLE":
             plan = get_cable_plan(plan_id, provider_name)
@@ -138,7 +142,8 @@ class UnifiedPurchaseView(APIView):
                 )
             phone_no = user.phone_number or "08012345678"
             return _execute_nellobytes_cable_purchase(
-                user, provider_name, plan_id, target_id, phone_no, plan["price"]
+                user, provider_name, plan_id, target_id, phone_no, plan["price"],
+                idempotency_key=_idempotency_key(request),
             )
 
         if category == "ELECTRICITY":
@@ -155,7 +160,8 @@ class UnifiedPurchaseView(APIView):
             meter_type = data.get("meter_type", "PREPAID")
             phone_no = user.phone_number or "08012345678"
             return _execute_nellobytes_electricity_purchase(
-                user, provider_name, meter_type, target_id, amount, phone_no
+                user, provider_name, meter_type, target_id, amount, phone_no,
+                idempotency_key=_idempotency_key(request),
             )
 
         return Response(
@@ -164,147 +170,54 @@ class UnifiedPurchaseView(APIView):
         )
 
 
-def _execute_nellobytes_purchase(user, trans_type, cost, buy_fn):
-    """
-    buy_fn(request_id, callback_url) -> NellobytesService result dict,
-    or raises NellobytesError. Shared by every Nellobytes-backed category:
-    debit-then-reserve, PENDING transaction, resolved later by the webhook
-    or the reconciliation sweep.
-    """
-    from wallet.models import Wallet, Transaction
+def _idempotency_key(request):
+    """Optional client-supplied key (header or body). Same key => same purchase, never charged twice."""
+    key = (request.headers.get("Idempotency-Key") or request.data.get("idempotency_key") or "").strip()
+    return key if re.fullmatch(r"[A-Za-z0-9._:-]{8,100}", key) else None
 
-    cost = Decimal(str(cost))
-    request_id = f"TIC-{uuid.uuid4().hex[:16].upper()}"
-    callback_url = f"{settings.PUBLIC_BASE_URL}{reverse('vtu:nellobytes-webhook')}"
+
+def _run_purchase(user, template, cost, idempotency_key=None):
+    """Hand a validated purchase to the provider-agnostic engine; returns a DRF Response."""
+    from .gateway import engine
 
     try:
-        with transaction.atomic():
-            wallet = Wallet.objects.select_for_update().get(user=user)
-
-            if wallet.balance < cost:
-                return Response(
-                    {"status": "false", "message": "Insufficient Balance"},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
-
-            result = buy_fn(request_id, callback_url)
-
-            wallet.balance -= cost
-            wallet.save(update_fields=["balance"])
-
-            Transaction.objects.create(
-                user=user,
-                trans_type=trans_type,
-                amount=cost,
-                reference=request_id,
-                order_id=result["order_id"],
-                status="PENDING",
-            )
-
-            response_data = {
-                "status": "pending",
-                "message": f"Your {trans_type.lower()} purchase is being processed",
-                "reference": request_id,
-                "order_id": result["order_id"],
-            }
-            # Surface any extra provider fields (e.g. electricity's
-            # meterno/metertoken) beyond our own normalized keys.
-            reserved_keys = {"orderid", "statuscode", "status", "order_id", "status_code"}
-            response_data.update({k: v for k, v in result.items() if k not in reserved_keys})
-
-            return Response(response_data, status=status.HTTP_202_ACCEPTED)
-
-    except NellobytesError as e:
-        logger.error(
-            "Nellobytes %s purchase error: cost=%s user=%s error=%s",
-            trans_type, cost, user.id, str(e),
-        )
-        Transaction.objects.create(
-            user=user,
-            trans_type=trans_type,
-            amount=cost,
-            reference=request_id,
-            status="FAILED",
-        )
-
-        # Nellobytes' own reseller balance running dry is an operational
-        # problem on our side, not something the end user can act on —
-        # show it as a generic outage rather than leaking "Insufficient
-        # Balance" (which reads like *their* wallet is short).
-        if "INSUFFICIENT_BALANCE" in str(e).upper():
-            return Response(
-                {
-                    "status": "false",
-                    "message": "This service is temporarily under maintenance. Please try again shortly.",
-                },
-                status=status.HTTP_503_SERVICE_UNAVAILABLE,
-            )
-
+        http_status, body = engine.execute_purchase(user, template, Decimal(str(cost)), idempotency_key)
+    except Exception:
+        logger.exception("VTU purchase crashed: service=%s user=%s", template.service, user.id)
         return Response(
-            {"status": "false", "message": str(e)},
-            status=status.HTTP_502_BAD_GATEWAY,
-        )
-
-    except Exception as e:
-        logger.error(
-            "Nellobytes %s purchase crash: cost=%s user=%s error=%s",
-            trans_type, cost, user.id, str(e),
-        )
-        Transaction.objects.create(
-            user=user,
-            trans_type=trans_type,
-            amount=cost,
-            reference=request_id,
-            status="FAILED",
-        )
-        return Response(
-            {
-                "status": "false",
-                "message": "Service temporarily unavailable. Please try again.",
-            },
+            {"status": "false", "message": "Service temporarily unavailable. Please try again."},
             status=status.HTTP_503_SERVICE_UNAVAILABLE,
         )
+    return Response(body, status=http_status)
 
 
-def _execute_nellobytes_data_purchase(user, network, plan_id, mobile_number, cost):
-    return _execute_nellobytes_purchase(
-        user, "DATA", cost,
-        lambda request_id, callback_url: NellobytesService.buy_data(
-            network=network, plan_id=plan_id, mobile_number=mobile_number,
-            request_id=request_id, callback_url=callback_url,
-        ),
-    )
+def _execute_nellobytes_data_purchase(user, network, plan_id, mobile_number, cost, idempotency_key=None):
+    return _run_purchase(user, PurchaseRequest(
+        service=Service.DATA, reference="", network=(network or "").upper(),
+        plan_id=str(plan_id), target=mobile_number,
+    ), cost, idempotency_key)
 
 
-def _execute_nellobytes_airtime_purchase(user, network, amount, mobile_number):
+def _execute_nellobytes_airtime_purchase(user, network, amount, mobile_number, idempotency_key=None):
     # Provider gets the face amount; the wallet is debited the admin-priced cost.
-    return _execute_nellobytes_purchase(
-        user, "AIRTIME", customer_price("AIRTIME", network, amount),
-        lambda request_id, callback_url: NellobytesService.buy_airtime(
-            network=network, amount=int(amount), mobile_number=mobile_number,
-            request_id=request_id, callback_url=callback_url,
-        ),
-    )
+    return _run_purchase(user, PurchaseRequest(
+        service=Service.AIRTIME, reference="", network=(network or "").upper(),
+        amount=int(amount), target=mobile_number,
+    ), customer_price("AIRTIME", network, amount), idempotency_key)
 
 
-def _execute_nellobytes_cable_purchase(user, cable_tv, package, smartcard_no, phone_no, cost):
-    return _execute_nellobytes_purchase(
-        user, "UTILITY", cost,
-        lambda request_id, callback_url: NellobytesService.buy_cable(
-            cable_tv=cable_tv, package=package, smartcard_no=smartcard_no, phone_no=phone_no,
-            request_id=request_id, callback_url=callback_url,
-        ),
-    )
+def _execute_nellobytes_cable_purchase(user, cable_tv, package, smartcard_no, phone_no, cost, idempotency_key=None):
+    return _run_purchase(user, PurchaseRequest(
+        service=Service.CABLE, reference="", network=(cable_tv or "").upper(),
+        plan_id=str(package), target=smartcard_no, phone=phone_no,
+    ), cost, idempotency_key)
 
 
-def _execute_nellobytes_electricity_purchase(user, company, meter_type, meter_no, amount, phone_no):
-    return _execute_nellobytes_purchase(
-        user, "UTILITY", customer_price("ELECTRICITY", company, amount),
-        lambda request_id, callback_url: NellobytesService.buy_electricity(
-            company=company, meter_type=meter_type, meter_no=meter_no, amount=int(amount),
-            phone_no=phone_no, request_id=request_id, callback_url=callback_url,
-        ),
-    )
+def _execute_nellobytes_electricity_purchase(user, company, meter_type, meter_no, amount, phone_no, idempotency_key=None):
+    return _run_purchase(user, PurchaseRequest(
+        service=Service.ELECTRICITY, reference="", network=(company or "").upper(),
+        amount=int(amount), target=meter_no, phone=phone_no, meter_type=meter_type,
+    ), customer_price("ELECTRICITY", company, amount), idempotency_key)
 
 
 class AirtimePurchaseView(APIView):
@@ -341,7 +254,9 @@ class AirtimePurchaseView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        return _execute_nellobytes_airtime_purchase(request.user, network, cost, phone_number)
+        return _execute_nellobytes_airtime_purchase(
+            request.user, network, cost, phone_number, idempotency_key=_idempotency_key(request)
+        )
 
 
 class DataPurchaseView(APIView):
@@ -369,7 +284,8 @@ class DataPurchaseView(APIView):
             )
 
         return _execute_nellobytes_data_purchase(
-            request.user, network, plan.plan_id, phone_number, plan.selling_price
+            request.user, network, plan.plan_id, phone_number, plan.selling_price,
+            idempotency_key=_idempotency_key(request),
         )
 
 
@@ -410,7 +326,8 @@ class ElectricityPurchaseView(APIView):
             )
 
         return _execute_nellobytes_electricity_purchase(
-            request.user, company, meter_type, meter_number, cost, phone
+            request.user, company, meter_type, meter_number, cost, phone,
+            idempotency_key=_idempotency_key(request),
         )
 
 
@@ -440,8 +357,20 @@ class CablePurchaseView(APIView):
             )
 
         return _execute_nellobytes_cable_purchase(
-            request.user, provider_name, plan.plan_id, card_number, phone, plan.selling_price
+            request.user, provider_name, plan.plan_id, card_number, phone, plan.selling_price,
+            idempotency_key=_idempotency_key(request),
         )
+
+
+def _verify_customer(service, network, target, meter_type="PREPAID"):
+    """Smartcard / meter lookup via the first eligible provider that supports it."""
+    probe = PurchaseRequest(service=service, reference="", network=(network or "").upper())
+    for adapter in router.select(probe).adapters:
+        try:
+            return adapter.verify_customer(service, probe.network, target, meter_type)
+        except NotImplementedError:
+            continue
+    raise CustomerVerificationError("Verification is temporarily unavailable. Please try again shortly.")
 
 
 class CableVerifyView(APIView):
@@ -459,8 +388,8 @@ class CableVerifyView(APIView):
             )
 
         try:
-            customer_name = NellobytesService.verify_smartcard(cable_tv, smartcard_no)
-        except NellobytesError as e:
+            customer_name = _verify_customer(Service.CABLE, cable_tv, smartcard_no)
+        except CustomerVerificationError as e:
             return Response({"status": "false", "message": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
         return Response({"status": "true", "customer_name": customer_name}, status=status.HTTP_200_OK)
@@ -482,94 +411,54 @@ class MeterVerifyView(APIView):
             )
 
         try:
-            customer_name = NellobytesService.verify_meter(company, meter_no, meter_type)
-        except NellobytesError as e:
+            customer_name = _verify_customer(Service.ELECTRICITY, company, meter_no, meter_type)
+        except CustomerVerificationError as e:
             return Response({"status": "false", "message": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
         return Response({"status": "true", "customer_name": customer_name}, status=status.HTTP_200_OK)
 
 
 @method_decorator(csrf_exempt, name="dispatch")
-class NellobytesCallbackView(APIView):
+class ProviderCallbackView(APIView):
+    """
+    Generic provider webhook (/vtu/webhook/<provider>/). The adapter parses and, where the
+    provider signs callbacks, verifies it. An unverified callback is only a "check now"
+    trigger: the real status is fetched server-to-server, so a forged callback cannot
+    flip a transaction. Repeated callbacks are no-ops (settle() is idempotent).
+    """
     permission_classes = []
     authentication_classes = []
+    provider_name = None
 
-    def get(self, request):
-        return self._handle(request, request.query_params)
+    def get(self, request, provider=None):
+        return self._handle(request, provider or self.provider_name)
 
-    def post(self, request):
-        data = request.data if isinstance(request.data, dict) else request.query_params
-        return self._handle(request, data)
+    def post(self, request, provider=None):
+        return self._handle(request, provider or self.provider_name)
 
-    def _handle(self, request, data):
+    def _handle(self, request, provider):
         from dashboard.utils import client_ip, log_webhook_event
-        from wallet.models import Transaction
+        from .gateway import engine
 
-        order_id = data.get("orderid")
-        request_id = data.get("requestid")
         ip = client_ip(request)
-        ref = f"order_id={order_id} request_id={request_id}"
+        adapter = registry.get_adapter(provider)
+        if adapter is None or not adapter.config.enabled:
+            return Response({"status": "unknown_provider"}, status=404)
 
-        logger.info(
-            "Nellobytes callback received: order_id=%s request_id=%s (fields beyond these are untrusted)",
-            order_id, request_id,
-        )
-        # Recorded unconditionally, before any lookup/validation — this row alone answers
-        # "is Nellobytes actually hitting my backend?" regardless of what happens next.
-        log_webhook_event(
-            "nellobytes", "received", detail=ref,
-            payload=str(dict(data))[:1000], ip_address=ip,
-        )
-
-        txn = None
-        if order_id:
-            txn = Transaction.objects.filter(order_id=order_id).first()
-        if txn is None and request_id:
-            txn = Transaction.objects.filter(reference=request_id).first()
-
-        if txn is None:
-            logger.error(
-                "Nellobytes callback: no matching Transaction for order_id=%s request_id=%s",
-                order_id, request_id,
-            )
-            log_webhook_event(
-                "nellobytes", "error", detail=f"No matching transaction — {ref}", ip_address=ip,
-            )
-            return Response({"status": "not_found"}, status=404)
-
-        if txn.status != "PENDING":
-            # Already resolved — nothing to do. Also means we never re-derive an
-            # outcome from a stale/replayed callback.
-            log_webhook_event(
-                "nellobytes", "duplicate_ignored", detail=f"status={txn.status} — {ref}", ip_address=ip,
-            )
-            return Response({"status": "already_resolved"}, status=200)
-
-        # Nellobytes doesn't sign this callback, so its orderstatus/statuscode
-        # fields are untrusted — anyone who knows their own order_id/reference
-        # (both are handed back in the purchase response) could otherwise POST
-        # a forged "FAILED" here to get refunded for an order that actually
-        # succeeded. Instead, use the callback purely as a "check now" trigger
-        # and resolve the real outcome via our own server-to-server query —
-        # the same call the reconciliation sweep uses.
+        # Recorded unconditionally, before any lookup/validation - this row alone answers
+        # "is the provider actually hitting my backend?" regardless of what happens next.
+        raw = request.query_params if request.method == "GET" else request.data
+        log_webhook_event(adapter.name, "received", payload=str(dict(raw))[:1000], ip_address=ip)
         try:
-            body = NellobytesService.query_order(order_id=txn.order_id)
-        except NellobytesError as e:
-            logger.error(
-                "Nellobytes callback: query_order failed for order_id=%s: %s",
-                txn.order_id, e,
-            )
-            log_webhook_event(
-                "nellobytes", "error", detail=f"query_order failed: {e} — {ref}", ip_address=ip,
-            )
-            return Response({"status": "query_failed"}, status=502)
+            http_status, body, outcome, detail = engine.handle_webhook(adapter, request)
+        except Exception:
+            logger.exception("%s webhook crashed", adapter.name)
+            log_webhook_event(adapter.name, "error", detail="unhandled error", ip_address=ip)
+            return Response({"status": "error"}, status=500)
+        log_webhook_event(adapter.name, outcome, detail=detail, ip_address=ip)
+        return Response(body, status=http_status)
 
-        outcome = NellobytesService.resolve_order_outcome(
-            body.get("orderstatus") or body.get("status"), body.get("statuscode")
-        )
-        NellobytesService.apply_order_outcome(txn.pk, outcome)
-        log_webhook_event(
-            "nellobytes", "resolved", detail=f"outcome={outcome} — {ref}", ip_address=ip,
-        )
 
-        return Response({"status": "acknowledged"}, status=200)
+class NellobytesCallbackView(ProviderCallbackView):
+    """Original callback URL, already registered on in-flight Nellobytes orders."""
+    provider_name = "nellobytes"

@@ -184,8 +184,10 @@ elif len(CHEAPDATAHUB_API_KEY) < 20:
 # ------------------------------------------------------------------
 # Nellobytes
 # ------------------------------------------------------------------
-NELLOBYTES_USER_ID = env("VTU_USER_ID", default="").strip()
-NELLOBYTES_API_KEY = env("VTU_API_KEY", default="").strip()
+# Provider credentials/URLs are read by vtu.gateway (VTU_<PROVIDER>_* in .env; see .env.example).
+# These two stay for older code and accept both the new and the legacy variable names.
+NELLOBYTES_USER_ID = (env("VTU_NELLOBYTES_USER_ID", default="") or env("VTU_USER_ID", default="")).strip()
+NELLOBYTES_API_KEY = (env("VTU_NELLOBYTES_API_KEY", default="") or env("VTU_API_KEY", default="")).strip()
 
 if not NELLOBYTES_USER_ID or not NELLOBYTES_API_KEY:
     import warnings
