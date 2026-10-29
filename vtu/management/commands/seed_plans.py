@@ -38,7 +38,7 @@ class Command(BaseCommand):
         # Deactivate everything first, then reactivate exactly what's in
         # DATA_PLANS — anything no longer present (e.g. stale CheapDataHub-era
         # rows, unsupported 9mobile) ends up is_active=False without deletion.
-        DataPlan.objects.update(is_active=False)
+        DataPlan.objects.filter(source="nellobytes").update(is_active=False)
 
         created = 0
         for entry in DATA_PLANS:
@@ -66,7 +66,7 @@ class Command(BaseCommand):
         # Same deactivate-then-reactivate approach as DataPlan — GOTV/STARTIMES
         # rows with no Nellobytes package code end up is_active=False since
         # they're absent from CABLE_PLANS until real codes are supplied.
-        CablePlan.objects.update(is_active=False)
+        CablePlan.objects.filter(source="nellobytes").update(is_active=False)
 
         created = 0
         for entry in CABLE_PLANS:

@@ -365,12 +365,15 @@ class CablePurchaseView(APIView):
 def _verify_customer(service, network, target, meter_type="PREPAID"):
     """Smartcard / meter lookup via the first eligible provider that supports it."""
     probe = PurchaseRequest(service=service, reference="", network=(network or "").upper())
+    last = None
     for adapter in router.select(probe).adapters:
         try:
             return adapter.verify_customer(service, probe.network, target, meter_type)
         except NotImplementedError:
             continue
-    raise CustomerVerificationError("Verification is temporarily unavailable. Please try again shortly.")
+        except CustomerVerificationError as e:      # this provider couldn't confirm: ask the next one
+            last = e
+    raise last or CustomerVerificationError("Verification is temporarily unavailable. Please try again shortly.")
 
 
 class CableVerifyView(APIView):

@@ -26,11 +26,7 @@ class Command(BaseCommand):
         adapter = registry.get_adapter("gongoz")
         if not adapter.config.enabled or not adapter.config.is_valid:
             raise CommandError("Enable and configure Gongoz first (VTU_GONGOZ_ENABLED / VTU_GONGOZ_API_KEY).")
-        try:
-            resp = adapter._call("GET", "user/")
-            catalog = resp.json() if resp.status_code == 200 else None
-        except Exception:
-            catalog = None
+        catalog = adapter.fetch_catalog()
         if not isinstance(catalog, dict):
             raise CommandError("Could not read the Gongoz catalogue (check the token / connectivity).")
 

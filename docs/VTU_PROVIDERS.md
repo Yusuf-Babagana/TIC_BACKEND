@@ -203,3 +203,23 @@ adapter never guesses them:
 * Cable name `STARTIME` in Gongoz's table = our `STARTIMES` (id 3).
 * Assumed, unverified: that airtime orders are queried at `/api/topup/<id>` (the docs' airtime
   query URL points at `/api/data/id`, probably a copy-paste error).
+
+### Making Gongoz the primary provider (what the mobile app sees)
+
+The app only talks to our backend (`/vtu/plans/`, `/vtu/purchase/`), so no app update is needed.
+
+1. `.env`: `VTU_GONGOZ_ENABLED=true`, `VTU_GONGOZ_API_KEY=...`, `VTU_GONGOZ_PRIORITY=1`,
+   `VTU_NELLOBYTES_PRIORITY=50` (kept as airtime/electricity fallback; or set
+   `VTU_NELLOBYTES_ENABLED=false` to stop using it entirely). Airtime and electricity go to
+   Gongoz first with no further setup.
+2. Data and cable plan ids are provider-specific codes, so import Gongoz's catalogue:
+   `python manage.py gongoz_import_plans` (preview), then `... --apply --margin 10`
+   (new plans priced at Gongoz cost + 10%; existing imported plans keep admin prices; re-run any
+   time to refresh costs and retire plans Gongoz dropped). Add `--deactivate-nellobytes` so the
+   app lists only Gongoz plans. Without that flag both catalogues are listed. Use
+   `--exclude-types` / `--types` to filter plan types (default skips TALKMORE voice plans).
+3. Plans carry a `source`. Gongoz-sourced plan ids are never sent to Nellobytes and vice versa,
+   so a plan can never be bought from a provider that has a different bundle under that id.
+4. `seed_plans` only touches Nellobytes-sourced plans, so it can't wipe imported ones.
+5. Customer verification (meter / smartcard) tries providers in priority order and falls through
+   to the next when one cannot confirm.

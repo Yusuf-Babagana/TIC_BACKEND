@@ -20,7 +20,7 @@ import time
 
 import requests
 
-from vtu.models import ProviderPlanCode
+from vtu.models import CablePlan, DataPlan, ProviderPlanCode
 
 from ..base import CustomerVerificationError, ProviderAdapter, WebhookRejected
 from ..config import ConfigSpec
@@ -90,9 +90,17 @@ class GongozAdapter(ProviderAdapter):
 
     # -- capability ---------------------------------------------------------
     def _code(self, r: PurchaseRequest):
-        return (ProviderPlanCode.objects
-                .filter(provider=self.name, service=r.service, network=(r.network or "").upper(), plan_id=str(r.plan_id))
-                .values_list("provider_code", flat=True).first())
+        net, pid = (r.network or "").upper(), str(r.plan_id)
+        mapped = (ProviderPlanCode.objects
+                  .filter(provider=self.name, service=r.service, network=net, plan_id=pid)
+                  .values_list("provider_code", flat=True).first())
+        if mapped:
+            return mapped
+        # Plans imported from Gongoz (gongoz_import_plans) already use Gongoz's own id.
+        model, field = (DataPlan, "network") if r.service == Service.DATA else (CablePlan, "provider_name")
+        if model.objects.filter(**{field: net, "plan_id": pid, "source": self.name}).exists():
+            return pid
+        return None
 
     def supports(self, r: PurchaseRequest) -> bool:
         net = (r.network or "").upper()
@@ -107,6 +115,15 @@ class GongozAdapter(ProviderAdapter):
         return False
 
     # -- http ---------------------------------------------------------------
+    def fetch_catalog(self):
+        """GET /user/ (also carries the plan catalogue). Returns the dict or None; never raises."""
+        try:
+            resp = self._call("GET", "user/")
+            body = self._json(resp)
+        except requests.RequestException:
+            return None
+        return body if resp.status_code == 200 and isinstance(body, dict) else None
+
     def _headers(self):
         return {"Authorization": f"Token {self.config.get('API_KEY')}", "Content-Type": "application/json"}
 

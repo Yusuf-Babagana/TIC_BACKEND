@@ -31,6 +31,9 @@ class DataPlan(models.Model):
     plan_id = models.CharField(max_length=20)
     selling_price = models.DecimalField(max_digits=10, decimal_places=2)
     api_price = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    # Which provider's plan code `plan_id` is. Imported Gongoz plans carry Gongoz's ids, which must
+    # never be sent to Nellobytes (a different provider's code could buy the wrong bundle).
+    source = models.CharField(max_length=20, default="nellobytes")
     is_active = models.BooleanField(default=True)
 
     class Meta:
@@ -64,6 +67,9 @@ class CablePlan(models.Model):
     selling_price = models.DecimalField(max_digits=10, decimal_places=2)
     # What Nellobytes charges us; selling_price is what the customer pays.
     api_price = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    # Which provider's plan code `plan_id` is. Imported Gongoz plans carry Gongoz's ids, which must
+    # never be sent to Nellobytes (a different provider's code could buy the wrong bundle).
+    source = models.CharField(max_length=20, default="nellobytes")
     is_active = models.BooleanField(default=True)
 
     class Meta:

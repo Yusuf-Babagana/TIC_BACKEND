@@ -255,3 +255,125 @@ class GongozCatalogCommandTests(GatewayTestCase):
         rows = dict(ProviderPlanCode.objects.filter(provider="gongoz").values_list("plan_id", "provider_code"))
         self.assertEqual(rows, {"dstv-padi": "74"})                 # duplicate-id and unmatched plans left for a human
         self.assertIn("ambiguous", out.getvalue())
+
+
+CATALOG2 = {
+    "Dataplans": {
+        "MTN_PLAN": {"ALL": [
+            {"dataplan_id": "281", "plan_type": "CORPORATE GIFTING", "plan": "1.0 GB", "month_validate": "CORPORATE MONTHLY", "plan_amount": "900"},
+            {"dataplan_id": "636", "plan_type": "TALKMORE", "plan": "400.0", "month_validate": "7 DAYS", "plan_amount": "100"},
+            {"dataplan_id": "1000.00", "plan_type": "SME", "plan": "x", "month_validate": "y", "plan_amount": "500"},
+        ]},
+        "AIRTEL_PLAN": {"ALL": [
+            {"dataplan_id": "313", "plan_type": "CORPORATE GIFTING", "plan": "1.0 GB", "month_validate": "CG MONTHLY", "plan_amount": "950"}]},
+    },
+    "Cableplan": {"STARTIMEPLAN": [
+        {"cableplan_id": "103", "cable": "STARTIME", "package": "Nova - 600 Naira - 1 Week", "plan_amount": "600"}]},
+}
+
+
+class GongozPrimaryTests(GatewayTestCase):
+    """Gongoz as the primary provider: plans come from Gongoz, Nellobytes never sees Gongoz plan ids."""
+    nello = True
+    fakes = False
+    env = {"VTU_GONGOZ_ENABLED": "true", "VTU_GONGOZ_API_KEY": KEY, "VTU_GONGOZ_PRIORITY": "1",
+           "VTU_NELLOBYTES_PRIORITY": "50"}
+
+    def setUp(self):
+        super().setUp()
+        User = get_user_model()
+        self.user = User.objects.create_user(username="p", email="p@example.com", password="x")
+        Wallet.objects.update_or_create(user=self.user, defaults={"balance": Decimal("20000")})
+
+    def run_import(self, *args):
+        from django.core.management import call_command
+        from io import StringIO
+        out = StringIO()
+        with mock.patch(HTTP, return_value=http_json(CATALOG2)):
+            call_command("gongoz_import_plans", *args, stdout=out)
+        return out.getvalue()
+
+    def test_preview_writes_nothing_then_apply_imports(self):
+        from vtu.models import DataPlan, CablePlan
+        DataPlan.objects.create(network="MTN", plan_id="1000.00", plan_name="old", selling_price=Decimal("563"), api_price=Decimal("563"))
+        out = self.run_import("--margin", "10")
+        self.assertIn("PREVIEW", out)
+        self.assertEqual(DataPlan.objects.filter(source="gongoz").count(), 0)
+        out = self.run_import("--apply", "--margin", "10")
+        g = DataPlan.objects.get(network="MTN", plan_id="281")
+        self.assertEqual((g.source, g.api_price, g.selling_price, g.is_active), ("gongoz", Decimal("900"), Decimal("990.00"), True))
+        self.assertFalse(DataPlan.objects.filter(plan_id="636").exists())                       # TALKMORE skipped
+        self.assertEqual(DataPlan.objects.get(plan_id="1000.00").source, "nellobytes")          # collision untouched
+        self.assertIn("collisions=1", out)
+        self.assertEqual(CablePlan.objects.get(plan_id="103").provider_name, "STARTIMES")
+        self.assertTrue(DataPlan.objects.get(network="AIRTEL", plan_id="313").is_active)
+
+    def test_reimport_keeps_admin_price_and_deactivates_dropped_plans(self):
+        from vtu.models import DataPlan
+        self.run_import("--apply")
+        DataPlan.objects.filter(plan_id="281").update(selling_price=Decimal("1234"))
+        DataPlan.objects.create(network="GLO", plan_id="999", plan_name="gone", selling_price=1, api_price=1, source="gongoz")
+        self.run_import("--apply", "--margin", "50")
+        self.assertEqual(DataPlan.objects.get(plan_id="281").selling_price, Decimal("1234.00"))
+        self.assertFalse(DataPlan.objects.get(plan_id="999").is_active)
+
+    def test_deactivate_nellobytes_hides_old_plans_only_when_asked(self):
+        from vtu.models import DataPlan
+        DataPlan.objects.create(network="MTN", plan_id="500", plan_name="n", selling_price=1, api_price=1)
+        self.run_import("--apply")
+        self.assertTrue(DataPlan.objects.get(plan_id="500").is_active)
+        self.run_import("--apply", "--deactivate-nellobytes")
+        self.assertFalse(DataPlan.objects.get(plan_id="500").is_active)
+        self.assertTrue(DataPlan.objects.get(network="MTN", plan_id="281").is_active)
+
+    def test_seed_plans_does_not_wipe_imported_gongoz_plans(self):
+        from django.core.management import call_command
+        from vtu.models import DataPlan
+        self.run_import("--apply")
+        call_command("seed_plans", verbosity=0)
+        self.assertTrue(DataPlan.objects.get(network="MTN", plan_id="281").is_active)
+
+    @mock.patch("vtu.nellobytes.requests.get")
+    @mock.patch(HTTP)
+    def test_app_data_purchase_goes_to_gongoz_never_nellobytes(self, gz, nb):
+        from rest_framework.test import APIClient
+        from django.urls import reverse
+        self.run_import("--apply")
+        gz.return_value = http_json({"id": 4242}, 201)
+        client = APIClient()
+        client.force_authenticate(self.user)
+        r = client.post(reverse("vtu:unified-purchase"), {
+            "category": "DATA", "provider": "MTN", "plan_id": "281", "target_id": "08030000000"}, format="json")
+        self.assertEqual((r.status_code, r.json()["order_id"]), (202, "data:4242"))
+        self.assertEqual(gz.call_args.kwargs["json"]["plan"], 281)
+        nb.assert_not_called()
+        self.assertEqual(Transaction.objects.get().provider, "gongoz")
+
+    @mock.patch("vtu.nellobytes.requests.get")
+    @mock.patch(HTTP)
+    def test_gongoz_plan_is_never_failed_over_to_nellobytes(self, gz, nb):
+        self.run_import("--apply")
+        gz.return_value = http_json({"detail": "x"}, 401)       # confirmed, failover-safe rejection
+        req = PurchaseRequest(service=Service.DATA, reference="", network="MTN", plan_id="281", target="08030000000")
+        status, _ = engine.execute_purchase(self.user, req, Decimal("900"))
+        self.assertEqual(status, 502)
+        nb.assert_not_called()                                   # Nellobytes can't serve a Gongoz plan id
+        self.assertEqual(Wallet.objects.get(user=self.user).balance, Decimal("20000.00"))
+
+    def test_legacy_nellobytes_plans_stay_nellobytes_only(self):
+        from vtu.models import DataPlan
+        DataPlan.objects.create(network="MTN", plan_id="1000.00", plan_name="n", selling_price=1, api_price=1)
+        req = PurchaseRequest(service=Service.DATA, reference="", network="MTN", plan_id="1000.00", target="0803")
+        self.assertEqual([a.name for a in router.select(req).adapters], ["nellobytes"])
+
+    def test_airtime_prefers_gongoz_then_nellobytes(self):
+        self.assertEqual([a.name for a in router.select(PurchaseRequest(service=Service.AIRTIME, reference="", network="MTN")).adapters],
+                         ["gongoz", "nellobytes"])
+
+    @mock.patch("vtu.nellobytes.requests.get")
+    @mock.patch(HTTP)
+    def test_verification_falls_through_when_first_provider_cannot_confirm(self, gz, nb):
+        from vtu.views import _verify_customer
+        gz.return_value = http_json({"unexpected": "shape"})
+        nb.return_value = http_json({"customer_name": "JOHN DOE"})
+        self.assertEqual(_verify_customer(Service.ELECTRICITY, "IKEDC", "1234567890"), "JOHN DOE")
