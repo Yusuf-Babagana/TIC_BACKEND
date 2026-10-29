@@ -1,14 +1,22 @@
 import logging
 
 import requests
-from django.conf import settings
-from django.db import transaction as db_transaction
 
 logger = logging.getLogger(__name__)
 
 
 class NellobytesError(Exception):
-    pass
+    """
+    ``ambiguous`` is True when the request may have reached Nellobytes and been
+    processed (read timeout, dropped connection, unparseable reply) - callers
+    must NOT treat that as a failed order. ``code`` is Nellobytes' raw status
+    string when it answered with a rejection.
+    """
+
+    def __init__(self, message="", ambiguous=False, code=""):
+        super().__init__(message)
+        self.ambiguous = ambiguous
+        self.code = code
 
 
 class NellobytesService:
@@ -56,24 +64,52 @@ class NellobytesService:
     }
 
     @classmethod
+    def _config(cls):
+        from vtu.gateway.adapters.nellobytes import load_config
+        return load_config()
+
+    @classmethod
     def _credentials(cls):
-        return settings.NELLOBYTES_USER_ID, settings.NELLOBYTES_API_KEY
+        cfg = cls._config()
+        return cfg.get("USER_ID"), cfg.get("API_KEY")
+
+    @classmethod
+    def _base_url(cls):
+        return cls._config().get("BASE_URL", cls.BASE_URL).rstrip("/")
+
+    @classmethod
+    def _timeout(cls):
+        try:
+            return float(cls._config().get("TIMEOUT", cls.TIMEOUT))
+        except ValueError:
+            return cls.TIMEOUT
 
     @classmethod
     def _get_json(cls, endpoint, params, timeout=None):
+        # Exception text from requests embeds the full URL (credentials are in
+        # the query string), so never log or re-raise it - only fixed messages.
         try:
-            resp = requests.get(f"{cls.BASE_URL}{endpoint}", params=params, timeout=timeout or cls.TIMEOUT)
-            return resp.json()
+            resp = requests.get(
+                f"{cls._base_url()}{endpoint}", params=params, timeout=timeout or cls._timeout()
+            )
+        except requests.ConnectTimeout:
+            # No connection was ever established, so nothing was sent.
+            raise NellobytesError("Nellobytes request timed out", code="CONNECT_TIMEOUT")
         except requests.Timeout:
-            raise NellobytesError("Nellobytes request timed out")
+            raise NellobytesError("Nellobytes request timed out", ambiguous=True, code="TIMEOUT")
         except requests.ConnectionError:
-            raise NellobytesError("Nellobytes connection failed")
+            raise NellobytesError("Nellobytes connection failed", ambiguous=True, code="CONNECTION")
+
+        try:
+            return resp.json()
         except ValueError:
             logger.error(
-                "Nellobytes non-JSON response: endpoint=%s status=%s body=%s",
-                endpoint, resp.status_code, resp.text[:500],
+                "Nellobytes non-JSON response: endpoint=%s status=%s", endpoint, resp.status_code,
             )
-            raise NellobytesError(f"Nellobytes returned invalid response (HTTP {resp.status_code})")
+            raise NellobytesError(
+                f"Nellobytes returned invalid response (HTTP {resp.status_code})",
+                ambiguous=True, code="BAD_RESPONSE",
+            )
 
     # Statuses Nellobytes has returned for a request that never actually
     # reached order processing — either their own docs describe them as an
@@ -124,23 +160,32 @@ class NellobytesService:
                 result["status"] = order_status
                 return result
 
+            # An ORDER_* status (e.g. ORDER_ONHOLD) or any reply carrying an orderid means
+            # an order may exist on their side - that is NOT a rejection, so flag it
+            # ambiguous and let status reconciliation decide (never refund blindly).
+            if (body.get("orderid") or str(order_status or "").startswith("ORDER_")) and                     order_status not in cls.RETRYABLE_ORDER_STATUSES:
+                logger.warning("Nellobytes non-RECEIVED status with order: endpoint=%s status=%s", endpoint, order_status)
+                err = NellobytesError(order_status or "Nellobytes order state unclear", ambiguous=True, code=order_status or "")
+                err.order_id = body.get("orderid") or ""
+                raise err
+
             if order_status not in cls.RETRYABLE_ORDER_STATUSES:
-                logger.error("Nellobytes order rejected: endpoint=%s body=%s", endpoint, body)
-                raise NellobytesError(order_status or "Nellobytes request failed")
+                logger.error("Nellobytes order rejected: endpoint=%s status=%s", endpoint, order_status)
+                raise NellobytesError(order_status or "Nellobytes request failed", code=order_status or "")
 
             logger.warning(
                 "Nellobytes order status %s (attempt %s/%s), retrying: endpoint=%s",
                 order_status, attempt + 1, attempts, endpoint,
             )
 
-        logger.error("Nellobytes order rejected after %s attempts: endpoint=%s body=%s", attempts, endpoint, body)
-        raise NellobytesError(order_status or "Nellobytes request failed")
+        logger.error("Nellobytes order rejected after %s attempts: endpoint=%s status=%s", attempts, endpoint, order_status)
+        raise NellobytesError(order_status or "Nellobytes request failed", code=order_status or "")
 
     @classmethod
     def buy_data(cls, network, plan_id, mobile_number, request_id, callback_url):
         network_code = cls.NETWORK_CODES.get((network or "").upper())
         if not network_code:
-            raise NellobytesError(f"Unsupported network for Nellobytes: {network}")
+            raise NellobytesError(f"Unsupported network for Nellobytes: {network}", code="UNSUPPORTED")
 
         user_id, api_key = cls._credentials()
         params = {
@@ -158,7 +203,7 @@ class NellobytesService:
     def buy_airtime(cls, network, amount, mobile_number, request_id, callback_url, bonus_type=None):
         network_code = cls.NETWORK_CODES.get((network or "").upper())
         if not network_code:
-            raise NellobytesError(f"Unsupported network for Nellobytes: {network}")
+            raise NellobytesError(f"Unsupported network for Nellobytes: {network}", code="UNSUPPORTED")
 
         user_id, api_key = cls._credentials()
         params = {
@@ -178,7 +223,7 @@ class NellobytesService:
     def buy_cable(cls, cable_tv, package, smartcard_no, phone_no, request_id, callback_url):
         cable_code = cls.CABLE_TV_CODES.get((cable_tv or "").upper())
         if not cable_code:
-            raise NellobytesError(f"Unsupported CableTV provider for Nellobytes: {cable_tv}")
+            raise NellobytesError(f"Unsupported CableTV provider for Nellobytes: {cable_tv}", code="UNSUPPORTED")
 
         user_id, api_key = cls._credentials()
         params = {
@@ -197,7 +242,7 @@ class NellobytesService:
     def verify_smartcard(cls, cable_tv, smartcard_no):
         cable_code = cls.CABLE_TV_CODES.get((cable_tv or "").upper())
         if not cable_code:
-            raise NellobytesError(f"Unsupported CableTV provider for Nellobytes: {cable_tv}")
+            raise NellobytesError(f"Unsupported CableTV provider for Nellobytes: {cable_tv}", code="UNSUPPORTED")
 
         user_id, api_key = cls._credentials()
         params = {
@@ -216,10 +261,10 @@ class NellobytesService:
     def buy_electricity(cls, company, meter_type, meter_no, amount, phone_no, request_id, callback_url):
         company_code = cls.ELECTRIC_COMPANY_CODES.get((company or "").upper())
         if not company_code:
-            raise NellobytesError(f"Unsupported electricity company for Nellobytes: {company}")
+            raise NellobytesError(f"Unsupported electricity company for Nellobytes: {company}", code="UNSUPPORTED")
         meter_type_code = cls.METER_TYPE_CODES.get((meter_type or "PREPAID").upper())
         if not meter_type_code:
-            raise NellobytesError(f"Unsupported meter type for Nellobytes: {meter_type}")
+            raise NellobytesError(f"Unsupported meter type for Nellobytes: {meter_type}", code="UNSUPPORTED")
 
         user_id, api_key = cls._credentials()
         params = {
@@ -239,10 +284,10 @@ class NellobytesService:
     def verify_meter(cls, company, meter_no, meter_type):
         company_code = cls.ELECTRIC_COMPANY_CODES.get((company or "").upper())
         if not company_code:
-            raise NellobytesError(f"Unsupported electricity company for Nellobytes: {company}")
+            raise NellobytesError(f"Unsupported electricity company for Nellobytes: {company}", code="UNSUPPORTED")
         meter_type_code = cls.METER_TYPE_CODES.get((meter_type or "PREPAID").upper())
         if not meter_type_code:
-            raise NellobytesError(f"Unsupported meter type for Nellobytes: {meter_type}")
+            raise NellobytesError(f"Unsupported meter type for Nellobytes: {meter_type}", code="UNSUPPORTED")
 
         user_id, api_key = cls._credentials()
         params = {
@@ -328,70 +373,16 @@ class NellobytesService:
 
     @staticmethod
     def resolve_order_outcome(orderstatus, statuscode=None):
-        """
-        Best-effort heuristic — Nellobytes' docs only confirm ORDER_COMPLETED
-        (statuscode=200) as a terminal success and ORDER_CANCELLED as a
-        terminal failure/cancel; ORDER_ONHOLD is a known intermediate state
-        (cable docs: only ORDER_RECEIVED/ORDER_ONHOLD orders are cancellable)
-        and correctly falls through to PENDING here. Tighten this once the
-        full final-status code table is available.
-        """
-        value = (orderstatus or "").upper()
-        if "COMPLETED" in value:
-            return "SUCCESSFUL"
-        if "FAILED" in value or "REFUND" in value or "CANCEL" in value:
-            return "FAILED"
-        return "PENDING"
+        """Legacy shim: SUCCESSFUL / FAILED / PENDING. See adapters.nellobytes.normalize_order_status."""
+        from vtu.gateway.adapters.nellobytes import normalize_order_status
+        from vtu.gateway.types import OrderStatus
+
+        status = normalize_order_status(orderstatus, statuscode)
+        return status if status in (OrderStatus.SUCCESSFUL, OrderStatus.FAILED) else "PENDING"
 
     @staticmethod
     def apply_order_outcome(transaction_id, outcome):
-        """
-        Race-safe, idempotent. Locks the Transaction row first, then the
-        Wallet row (in that order, consistently), inside one atomic block —
-        prevents a double refund if the webhook and a reconciliation sweep
-        both resolve the same order concurrently.
-        """
-        from wallet.models import Transaction, Wallet
+        """Legacy shim: the single race-safe implementation lives in the gateway engine."""
+        from vtu.gateway.engine import apply_outcome
 
-        with db_transaction.atomic():
-            try:
-                txn = Transaction.objects.select_for_update().get(pk=transaction_id)
-            except Transaction.DoesNotExist:
-                logger.error("apply_order_outcome: Transaction %s not found", transaction_id)
-                return
-
-            if txn.status != "PENDING":
-                logger.info(
-                    "apply_order_outcome: Transaction %s already resolved (%s) — skipping",
-                    transaction_id, txn.status,
-                )
-                return
-
-            if outcome == "SUCCESSFUL":
-                txn.status = "SUCCESSFUL"
-                txn.save(update_fields=["status"])
-
-                # dashboard's transaction_made signal only fires on Transaction
-                # *creation* with status already SUCCESSFUL — this txn was created
-                # PENDING, so replicate that admin notification here to keep parity
-                # with the synchronous CheapDataHub purchase flow.
-                from dashboard.models import AdminNotification
-                AdminNotification.objects.create(
-                    notification_type="new_purchase",
-                    message=f"Purchase: {txn.user.username} bought ₦{txn.amount} ({txn.trans_type}) — {txn.reference}",
-                    link="/dashboard/transactions/",
-                )
-
-                from users.utils import reward_referrer_on_first_purchase
-                reward_referrer_on_first_purchase(txn.user)
-            elif outcome == "FAILED":
-                wallet = Wallet.objects.select_for_update().get(user=txn.user)
-                wallet.balance += txn.amount
-                wallet.save(update_fields=["balance"])
-                txn.status = "FAILED"
-                txn.save(update_fields=["status"])
-            else:
-                logger.warning(
-                    "apply_order_outcome: Transaction %s outcome still PENDING/unrecognized — needs manual review",
-                    transaction_id,
-                )
+        apply_outcome(transaction_id, outcome, source="legacy")

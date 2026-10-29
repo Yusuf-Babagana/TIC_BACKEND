@@ -28,7 +28,7 @@ from marketing.models import Flyer as FlyerModel, MarketingGallery as MarketingG
 from users.models import FeatureFlag, Referral, ReferralConfig, SiteSettings
 from vtu.models import CablePlan, DataPlan, Provider, ServicePricing
 from vtu.nellobytes import NellobytesError, NellobytesService
-from wallet.models import Transaction, Wallet
+from wallet.models import Transaction, TransactionEvent, Wallet
 
 UserModel = get_user_model()
 
@@ -728,6 +728,11 @@ class DashboardTransactionRefundView(LoginRequiredMixin, View):
                     {"error": f"Only FAILED transactions can be refunded (this one is {txn.status})"},
                     status=400,
                 )
+            if txn.refunded_at is not None:
+                return JsonResponse(
+                    {"error": "This transaction was already refunded to the wallet automatically"},
+                    status=400,
+                )
             if txn.trans_type == "DEPOSIT":
                 return JsonResponse(
                     {"error": "Deposits weren't deducted from the wallet, so there's nothing to refund"},
@@ -743,7 +748,12 @@ class DashboardTransactionRefundView(LoginRequiredMixin, View):
             wallet.save(update_fields=["balance"])
 
             txn.status = "REFUNDED"
-            txn.save(update_fields=["status"])
+            txn.refunded_at = timezone.now()
+            txn.save(update_fields=["status", "refunded_at"])
+            TransactionEvent.objects.create(
+                transaction=txn, from_status="FAILED", to_status="REFUNDED", wallet_delta=txn.amount,
+                balance_after=wallet.balance, source="admin", detail=f"manual refund by {request.user.username}",
+            )
 
         AdminNotification.objects.create(
             notification_type="admin_refund",

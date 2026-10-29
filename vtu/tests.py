@@ -11,6 +11,7 @@ from wallet.models import Transaction, Wallet
 
 from .models import CablePlan, DataPlan, ServicePricing
 from .pricing import customer_price
+from .testing import GatewayTestCase, http_json
 
 
 class PricingTests(TestCase):
@@ -47,8 +48,13 @@ class SeedKeepsAdminPricesTests(TestCase):
         self.assertEqual(plan.selling_price, Decimal("563.00"))
 
 
-class PurchaseUsesAdminPriceTests(TestCase):
+class PurchaseUsesAdminPriceTests(GatewayTestCase):
+    """Regression: customer pricing, wallet debit and the provider call through the full stack."""
+    nello = True
+    fakes = False
+
     def setUp(self):
+        super().setUp()
         User = get_user_model()
         self.user = User.objects.create_user(username="u1", email="u1@example.com", password="x")
         Wallet.objects.update_or_create(user=self.user, defaults={"balance": Decimal("5000")})
@@ -58,24 +64,26 @@ class PurchaseUsesAdminPriceTests(TestCase):
             network="MTN", plan_id="1000.00", plan_name="1GB", selling_price=Decimal("350"), api_price=Decimal("400"),
         )
 
-    @mock.patch("vtu.views.NellobytesService")
-    def test_data_charges_admin_price(self, svc):
-        svc.buy_data.return_value = {"order_id": "O1"}
+    @mock.patch("vtu.nellobytes.requests.get")
+    def test_data_charges_admin_price(self, get):
+        get.return_value = http_json({"status": "ORDER_RECEIVED", "orderid": "O1", "statuscode": "100"})
         r = self.client.post(reverse("vtu:unified-purchase"), {
             "category": "DATA", "provider": "MTN", "plan_id": "1000.00", "target_id": "08030000000",
         }, format="json")
         self.assertEqual(r.status_code, 202, r.content)
+        self.assertEqual(r.json()["order_id"], "O1")
         self.assertEqual(Wallet.objects.get(user=self.user).balance, Decimal("4650.00"))
+        self.assertEqual(Transaction.objects.get(order_id="O1").provider, "nellobytes")
 
-    @mock.patch("vtu.views.NellobytesService")
-    def test_airtime_discount_debits_less_but_sends_face_amount(self, svc):
-        svc.buy_airtime.return_value = {"order_id": "O2"}
+    @mock.patch("vtu.nellobytes.requests.get")
+    def test_airtime_discount_debits_less_but_sends_face_amount(self, get):
+        get.return_value = http_json({"status": "ORDER_RECEIVED", "orderid": "O2", "statuscode": "100"})
         ServicePricing.objects.create(category="AIRTIME", provider="MTN", percent_adjust=Decimal("-2"))
         r = self.client.post(reverse("vtu:unified-purchase"), {
             "category": "AIRTIME", "provider": "MTN", "plan_id": "x", "target_id": "08030000000", "amount": "1000",
         }, format="json")
         self.assertEqual(r.status_code, 202, r.content)
-        self.assertEqual(svc.buy_airtime.call_args.kwargs["amount"], 1000)
+        self.assertEqual(get.call_args.kwargs["params"]["Amount"], 1000)
         self.assertEqual(Wallet.objects.get(user=self.user).balance, Decimal("4020.00"))
         self.assertEqual(Transaction.objects.get(order_id="O2").amount, Decimal("980.00"))
 
