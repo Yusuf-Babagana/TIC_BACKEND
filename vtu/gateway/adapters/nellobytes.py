@@ -78,12 +78,26 @@ class NellobytesAdapter(ProviderAdapter):
     default_priority = 10
     webhook_verified = False    # Nellobytes callbacks are unsigned - always confirmed via query_status
 
+    @staticmethod
+    def _plan_is_ours(request):
+        """DATA/CABLE plan ids are provider-specific codes: only serve plans imported from Nellobytes."""
+        from vtu.models import CablePlan, DataPlan
+
+        net, pid = (request.network or "").upper(), str(request.plan_id)
+        if request.service == Service.DATA:
+            src = DataPlan.objects.filter(network=net, plan_id=pid).values_list("source", flat=True).first()
+        else:
+            src = CablePlan.objects.filter(provider_name=net, plan_id=pid).values_list("source", flat=True).first()
+        return src in (None, "nellobytes")      # no row = legacy behaviour
+
     def supports(self, request: PurchaseRequest) -> bool:
         net = (request.network or "").upper()
-        if request.service in (Service.DATA, Service.AIRTIME):
+        if request.service == Service.DATA:
+            return net in NellobytesService.NETWORK_CODES and self._plan_is_ours(request)
+        if request.service == Service.AIRTIME:
             return net in NellobytesService.NETWORK_CODES
         if request.service == Service.CABLE:
-            return net in NellobytesService.CABLE_TV_CODES
+            return net in NellobytesService.CABLE_TV_CODES and self._plan_is_ours(request)
         if request.service == Service.ELECTRICITY:
             return net in NellobytesService.ELECTRIC_COMPANY_CODES
         return False
