@@ -92,6 +92,8 @@ Creates Monnify virtual account.
 [ { "id": 78, "provider": "mtn", "name": "1 GB (1 Day)", "price": 315.0 }, ... ]
 ```
 
+For `category=DATA` each plan also has `plan_type` (upper-case: `SME`, `GIFTING`, `CORPORATE GIFTING`, `DATA COUPON`, `SPECIAL DATA`, `TALKMORE`, `GONGOZ SME`, ... or `OTHER`). The app builds its Data Type picker from the distinct values for the selected network. `provider` also accepts `smile`.
+
 ---
 
 ## VTU — Unified Purchase

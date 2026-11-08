@@ -40,6 +40,7 @@ class DataPlanListView(APIView):
                     "id": p.plan_id,
                     "provider": p.network.lower(),
                     "name": p.plan_name,
+                    "plan_type": (p.plan_type or "OTHER").upper(),
                     "price": float(p.selling_price),
                 }
                 for p in qs

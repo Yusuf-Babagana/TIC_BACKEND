@@ -6,7 +6,9 @@ from django.db import transaction
 from vtu.gateway import registry
 from vtu.models import CablePlan, DataPlan
 
-DATA_NETWORKS = {"MTN_PLAN": "MTN", "GLO_PLAN": "GLO", "AIRTEL_PLAN": "AIRTEL", "9MOBILE_PLAN": "9MOBILE"}
+DATA_NETWORKS = {
+    "MTN_PLAN": "MTN", "GLO_PLAN": "GLO", "AIRTEL_PLAN": "AIRTEL", "9MOBILE_PLAN": "9MOBILE", "SMILE_PLAN": "SMILE",
+}
 CABLE_NAMES = {"DSTV": "DSTV", "GOTV": "GOTV", "STARTIME": "STARTIMES", "STARTIMES": "STARTIMES"}
 CENT = Decimal("0.01")
 
@@ -24,8 +26,8 @@ class Command(BaseCommand):
         parser.add_argument("--apply", action="store_true", help="Write changes (default: preview only)")
         parser.add_argument("--margin", type=float, default=0.0,
                             help="Percent added to Gongoz cost for NEW plans' selling price (default 0 = sell at cost)")
-        parser.add_argument("--exclude-types", default="TALKMORE",
-                            help="Comma-separated Gongoz plan types to skip (default: TALKMORE)")
+        parser.add_argument("--exclude-types", default="",
+                            help="Comma-separated Gongoz plan types to skip (default: none, every type is imported)")
         parser.add_argument("--types", default="", help="Only import these Gongoz plan types (comma-separated)")
         parser.add_argument("--deactivate-nellobytes", action="store_true",
                             help="Also set the existing Nellobytes data/cable plans inactive")
@@ -83,7 +85,7 @@ class Command(BaseCommand):
                 if cost <= 0:
                     continue
                 name = f"{p.get('plan', '').strip()} - {p.get('month_validate', '').strip()} ({ptype.title()})"
-                rows[(net, pid)] = (name[:100], cost)
+                rows[(net, pid)] = (name[:100], cost, ptype[:40])
         return rows
 
     def collect_cable(self, cable):
@@ -100,14 +102,15 @@ class Command(BaseCommand):
                 except ArithmeticError:
                     continue
                 if prov and cost > 0:
-                    rows[(prov, str(p["cableplan_id"]))] = (str(p.get("package", "")).strip().strip('"').strip()[:100], cost)
+                    rows[(prov, str(p["cableplan_id"]))] = (str(p.get("package", "")).strip().strip('"').strip()[:100], cost, "")
         return rows
 
     # -- write ------------------------------------------------------------------
     def sync(self, model, rows, factor, apply, net_field):
         new = upd = coll = 0
         seen = set()
-        for (net, pid), (name, cost) in sorted(rows.items()):
+        has_type = hasattr(model, "plan_type")
+        for (net, pid), (name, cost, ptype) in sorted(rows.items()):
             seen.add((net, pid))
             existing = model.objects.filter(**{net_field: net, "plan_id": pid}).first()
             if existing and existing.source != "gongoz":
@@ -118,13 +121,18 @@ class Command(BaseCommand):
                 upd += 1
                 if apply:
                     existing.plan_name, existing.api_price, existing.is_active = name, cost, True
-                    existing.save(update_fields=["plan_name", "api_price", "is_active"])
+                    fields = ["plan_name", "api_price", "is_active"]
+                    if has_type:
+                        existing.plan_type = ptype
+                        fields.append("plan_type")
+                    existing.save(update_fields=fields)
             else:
                 new += 1
                 if apply:
+                    extra = {"plan_type": ptype} if has_type else {}
                     model.objects.create(**{net_field: net, "plan_id": pid, "plan_name": name, "api_price": cost,
                                             "selling_price": (cost * factor).quantize(CENT, rounding=ROUND_HALF_UP),
-                                            "source": "gongoz", "is_active": True})
+                                            "source": "gongoz", "is_active": True, **extra})
         gone = 0
         for plan in model.objects.filter(source="gongoz", is_active=True):
             if (getattr(plan, net_field), plan.plan_id) not in seen:

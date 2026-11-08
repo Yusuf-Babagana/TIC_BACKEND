@@ -139,3 +139,37 @@ class DashboardPricingTests(TestCase):
     def test_requires_login(self):
         self.client.logout()
         self.assertEqual(self.client.post(reverse("dashboard_plans_bulk_price"), {"percent": "5"}).status_code, 302)
+
+
+class DataPlanTypeTests(TestCase):
+    """The app builds its "Data Type" picker from plan_type on GET /vtu/plans/."""
+
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(username="ptype", email="ptype@example.com", password="x")
+        self.client = APIClient()
+        self.client.force_authenticate(self.user)
+        for pid, ptype, net in [("1", "SME", "MTN"), ("2", "DATA COUPON", "MTN"),
+                                ("3", "CORPORATE GIFTING", "MTN"), ("4", "", "MTN"), ("5", "GONGOZ SME", "SMILE")]:
+            DataPlan.objects.create(network=net, plan_id=pid, plan_name=f"plan {pid}", plan_type=ptype,
+                                    selling_price=Decimal("100"), source="gongoz")
+
+    def test_plans_api_returns_every_plan_type(self):
+        res = self.client.get("/vtu/plans/", {"category": "DATA", "provider": "mtn"})
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual({p["plan_type"] for p in res.json()}, {"SME", "DATA COUPON", "CORPORATE GIFTING", "OTHER"})
+
+    def test_smile_network_is_served(self):
+        res = self.client.get("/vtu/plans/", {"category": "DATA", "provider": "smile"})
+        self.assertEqual([p["plan_type"] for p in res.json()], ["GONGOZ SME"])
+
+    def test_backfill_reads_type_from_plan_name(self):
+        import importlib
+        from django.apps import apps as global_apps
+        migration = importlib.import_module("vtu.migrations.0011_dataplan_plan_type")
+        DataPlan.objects.all().delete()
+        a = DataPlan.objects.create(network="GLO", plan_id="10", plan_name="1 GB - 7 days (Corporate Gifting)", selling_price=1)
+        b = DataPlan.objects.create(network="GLO", plan_id="11", plan_name="No suffix here", selling_price=1)
+        migration.backfill_plan_type(global_apps, None)
+        a.refresh_from_db(); b.refresh_from_db()
+        self.assertEqual(a.plan_type, "CORPORATE GIFTING")
+        self.assertEqual(b.plan_type, "")
