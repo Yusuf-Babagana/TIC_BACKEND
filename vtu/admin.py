@@ -16,10 +16,10 @@ class ProviderAdmin(admin.ModelAdmin):
 
 @admin.register(DataPlan)
 class DataPlanAdmin(admin.ModelAdmin):
-    list_display = ("plan_name", "network", "selling_price", "api_price", "is_active")
+    list_display = ("plan_name", "network", "plan_type", "selling_price", "api_price", "is_active")
     list_editable = ("selling_price", "is_active")
-    list_filter = ("network", "is_active")
-    search_fields = ("plan_name", "network")
+    list_filter = ("network", "plan_type", "is_active")
+    search_fields = ("plan_name", "network", "plan_type")
 
 
 @admin.register(CablePlan)

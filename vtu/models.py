@@ -21,6 +21,7 @@ class DataPlan(models.Model):
         ('GLO', 'Glo'),
         ('9MOBILE', '9mobile'),
         ('T2MOBILE', 't2mobile'),
+        ('SMILE', 'Smile'),
     ]
 
     provider = models.ForeignKey(
@@ -28,6 +29,9 @@ class DataPlan(models.Model):
     )
     network = models.CharField(max_length=10, choices=NETWORK_CHOICES)
     plan_name = models.CharField(max_length=100)
+    # The "Data Type" the app groups plans under: SME, GIFTING, CORPORATE GIFTING, DATA COUPON,
+    # TALKMORE, ... Stored upper-case; blank = untyped (the API reports it as "OTHER").
+    plan_type = models.CharField(max_length=40, blank=True, default="", db_index=True)
     plan_id = models.CharField(max_length=20)
     selling_price = models.DecimalField(max_digits=10, decimal_places=2)
     api_price = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
